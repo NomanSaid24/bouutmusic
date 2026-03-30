@@ -2,7 +2,10 @@
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { CollaborateWithUsForm } from '@/components/Promo/CollaborateWithUsForm';
 import { DemoSubmissionForm } from '@/components/Promo/DemoSubmissionForm';
+import { PlaylistSubmissionForm } from '@/components/Promo/PlaylistSubmissionForm';
+import { PromoteMusicForm } from '@/components/Promo/PromoteMusicForm';
 import { ReleaseMusicForm } from '@/components/Promo/ReleaseMusicForm';
 
 interface Service {
@@ -50,11 +53,23 @@ export default function ServiceFormPage({ params }: { params: Promise<{ id: stri
                 body: JSON.stringify({ formData })
             });
 
+            const payload = await res.json().catch(() => null) as {
+                paymentRequired?: boolean;
+                redirectUrl?: string;
+                message?: string;
+                error?: string;
+            } | null;
+
             if (res.ok) {
-                alert('Submission successful! We will get back to you soon.');
+                if (payload?.redirectUrl) {
+                    router.push(payload.redirectUrl);
+                    return;
+                }
+
+                alert(payload?.message || 'Submission successful! We will get back to you soon.');
                 router.push('/dashboard/promo-tools');
             } else {
-                alert('Failed to submit. Please try again.');
+                alert(payload?.error || 'Failed to submit. Please try again.');
             }
         } catch (error) {
             console.error('Submission error:', error);
@@ -62,13 +77,49 @@ export default function ServiceFormPage({ params }: { params: Promise<{ id: stri
         }
     };
 
-    if (loading) return <div className="p-8 text-center text-gray-500">Loading form...</div>;
-    if (!service) return <div className="p-8 text-center text-red-500">Service not found.</div>;
+    if (loading) {
+        return (
+            <div className="bouut-form-loader-screen" role="status" aria-live="polite">
+                <div className="bouut-form-loader-card">
+                    <div className="bouut-form-loader-spinner" />
+                    <div className="bouut-form-loader-title">Preparing your form</div>
+                    <div className="bouut-form-loader-text">
+                        We&apos;re loading the promo request details and setting things up for you.
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!service) {
+        return (
+            <div className="bouut-form-loader-screen">
+                <div className="bouut-form-loader-card bouut-form-loader-card-error">
+                    <div className="bouut-form-loader-title">Service not found</div>
+                    <div className="bouut-form-loader-text">
+                        This promo form could not be loaded. Please go back and choose a service again.
+                    </div>
+                    <button type="button" className="btn btn-outline" onClick={() => router.push('/dashboard/promo-tools')}>
+                        Back to Promo Tools
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     const renderForm = () => {
         const lowerName = service.name.toLowerCase();
         if (lowerName.includes('demo')) {
             return <DemoSubmissionForm onSubmit={handleSubmit} onCancel={() => router.back()} />;
+        }
+        if (lowerName.includes('playlist')) {
+            return <PlaylistSubmissionForm onSubmit={handleSubmit} onCancel={() => router.back()} />;
+        }
+        if (lowerName.includes('promote my music')) {
+            return <PromoteMusicForm onSubmit={handleSubmit} onCancel={() => router.back()} />;
+        }
+        if (lowerName.includes('collaborate')) {
+            return <CollaborateWithUsForm onSubmit={handleSubmit} onCancel={() => router.back()} />;
         }
         if (lowerName.includes('release')) {
             return <ReleaseMusicForm onSubmit={handleSubmit} onCancel={() => router.back()} />;

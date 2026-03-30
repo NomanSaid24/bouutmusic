@@ -2,8 +2,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-    LayoutDashboard, Users, Music, Award, 
-    Settings, DollarSign, FileText, Bell 
+    LayoutDashboard, Users, Music, Award,
+    Settings, DollarSign, FileText, Bell, ClipboardList, RotateCcw
 } from 'lucide-react';
 
 const adminNav = [
@@ -12,7 +12,10 @@ const adminNav = [
     { label: 'Songs Approval', href: '/admin/songs', icon: <Music size={16} /> },
     { label: 'Opportunities', href: '/admin/opportunities', icon: <Award size={16} /> },
     { label: 'Services & Pricing', href: '/admin/services', icon: <Settings size={16} /> },
+    { label: 'Promo Submissions', href: '/admin/promo-submissions', icon: <ClipboardList size={16} /> },
+    { label: 'Refund Queue', href: '/admin/refunds', icon: <RotateCcw size={16} /> },
     { label: 'Payments', href: '/admin/payments', icon: <DollarSign size={16} /> },
+    { label: 'Payment Settings', href: '/admin/payment-settings', icon: <Settings size={16} /> },
     { label: 'Blog CMS', href: '/admin/blog', icon: <FileText size={16} /> },
     { label: 'Notifications', href: '/admin/notifications', icon: <Bell size={16} /> },
 ];

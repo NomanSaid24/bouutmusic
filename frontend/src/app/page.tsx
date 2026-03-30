@@ -1,158 +1,385 @@
 'use client';
+
 import Link from 'next/link';
-import { Music, Disc3, TrendingUp, Star, Globe, Tv } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { usePlayerStore } from '@/store/playerStore';
-import { Footer } from '@/components/Layout/Footer';
+import {
+  ArrowRight,
+  BadgeDollarSign,
+  BriefcaseBusiness,
+  Coins,
+  Globe2,
+  Megaphone,
+  Play,
+  Radio,
+  Sparkles,
+  Tv,
+  Users2,
+} from 'lucide-react';
+import { useAuth } from '@/components/providers/AuthProvider';
 
-const MOCK_SONGS = [
-  { id: '1', title: 'Dil Ka Safar', artist: 'Aryan Kapoor', artUrl: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop', plays: 482000 },
-  { id: '2', title: 'Midnight Dreams', artist: 'Priya Singh', artUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&h=300&fit=crop', plays: 391000 },
-  { id: '3', title: 'Electric Soul', artist: 'DJ Maverick', artUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&h=300&fit=crop', plays: 278000 },
-  { id: '4', title: 'Noor', artist: 'Raza Khan', artUrl: 'https://images.unsplash.com/photo-1487215078519-e21cc028cb29?w=300&h=300&fit=crop', plays: 254000 },
-  { id: '5', title: 'City Lights', artist: 'Zara Ahmed', artUrl: 'https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=300&h=300&fit=crop', plays: 198000 },
+const communityFaces = [
+  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop&crop=face',
+  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop&crop=face',
+  'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=120&h=120&fit=crop&crop=face',
+  'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=face',
 ];
 
-const ARTISTS = [
-  { id: '1', name: 'Aryan Kapoor', genre: 'Bollywood', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face' },
-  { id: '2', name: 'Priya Singh', genre: 'Pop', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face' },
-  { id: '3', name: 'DJ Maverick', genre: 'EDM', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face' },
-  { id: '4', name: 'Raza Khan', genre: 'Sufi', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face' },
-  { id: '5', name: 'Zara Ahmed', genre: 'R&B', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face' },
+const distributionCards = [
+  {
+    icon: <Globe2 size={18} />,
+    title: 'Think Worldwide',
+    description: 'Take your music to global streaming platforms, digital stores, and curated catalog destinations from one place.',
+  },
+  {
+    icon: <Coins size={18} />,
+    title: 'Make Your Music Make Money The Right Way',
+    description: 'Collect royalties, keep your release data organized, and build a cleaner revenue engine for every drop.',
+  },
+  {
+    icon: <Megaphone size={18} />,
+    title: 'Powerful Promotion Tools',
+    description: 'Push every release further with promo support, editorial opportunities, and better visibility across the platform.',
+  },
 ];
 
-const SERVICES = [
-  { icon: <Globe size={22} />, title: 'Music Distribution', desc: 'Release your music on Spotify, Apple Music, and 150+ platforms worldwide.' },
-  { icon: <TrendingUp size={22} />, title: 'Promotion & Marketing', desc: 'Boost your fanbase with targeted campaigns and playlist placements.' },
-  { icon: <Star size={22} />, title: 'Artist Analytics', desc: 'Track your streams, revenue, and audience growth in real-time.' },
-  { icon: <Tv size={22} />, title: 'Broadcast on TV', desc: 'Get your music video featured on music TV channels across India.' },
-  { icon: <Music size={22} />, title: 'Demo Review', desc: 'Get professional feedback on your tracks from industry experts.' },
-  { icon: <Disc3 size={22} />, title: 'Opportunities', desc: 'Access radio plays, gigs, and publication contests.' },
+const promotionCards = [
+  {
+    step: '1',
+    title: 'Bouut TV',
+    description: 'Pitch videos, unlock platform exposure, and move your release into a more visible broadcast lane.',
+  },
+  {
+    step: '2',
+    title: 'Radio Broadcast',
+    description: 'Create a stronger release run with opportunities tailored for radio-ready music and discovery.',
+  },
+  {
+    step: '3',
+    title: 'Promotional Boost',
+    description: 'Launch better campaigns with smarter placement, stronger momentum, and cleaner storytelling.',
+  },
+  {
+    step: '4',
+    title: 'Exclusive Digital Tools',
+    description: 'Use platform-first tools that help you market releases with more confidence and control.',
+  },
 ];
 
-function SongCard({ song }: { song: typeof MOCK_SONGS[0] }) {
-  const { playTrack } = usePlayerStore();
+const moneyPoints = [
+  {
+    icon: <BadgeDollarSign size={18} />,
+    title: 'Licensing With Brands',
+    text: 'Open your music for sync-friendly placements and brand-facing opportunities designed for independent artists.',
+  },
+  {
+    icon: <BriefcaseBusiness size={18} />,
+    title: 'Production Opportunities',
+    text: 'Find partnerships and commissioned work that can turn your catalog into recurring income.',
+  },
+  {
+    icon: <Radio size={18} />,
+    title: 'Live Performances',
+    text: 'Get closer to event organizers and performance opportunities that increase both reach and revenue.',
+  },
+];
+
+const growthPoints = [
+  'Build stronger momentum around every release with promotion, distribution, and monetization working together.',
+  'Reach your audience with smarter campaigns and get discovered by curators, brands, and partners faster.',
+  'Stay in control of your growth and understand what is working with practical data and artist-first tools.',
+  'Get access to opportunities that can push your music into playlists, publications, live stages, and media.',
+  'Keep your workflow simple with one connected system built to help independent artists move forward.',
+];
+
+const closingCtas = [
+  {
+    eyebrow: 'The Heart Of Bouut',
+    title: 'Experience The Power Of Music Business Administration',
+    text: 'Distribute, promote, and monetize all in one place.',
+    action: 'Be Part Of Bouut',
+  },
+  {
+    eyebrow: 'Built For Independent Artists',
+    title: 'Experience The Power Of Music Business Administration',
+    text: 'Visibility, revenue, and momentum in one clean system.',
+    action: 'Upgrade to Pro',
+  },
+];
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 },
+  },
+};
+
+const sectionVariants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.55 } },
+};
+
+function PrimaryHeroAction({
+  isAuthenticated,
+  openAuthModal,
+}: {
+  isAuthenticated: boolean;
+  openAuthModal: (mode?: 'login' | 'register', redirectTo?: string) => void;
+}) {
+  if (isAuthenticated) {
+    return (
+      <Link href="/dashboard" className="landing-primary-btn">
+        Open Dashboard
+      </Link>
+    );
+  }
+
   return (
-    <motion.div 
-      className="card song-card"
-      variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
-      whileHover={{ y: -8, transition: { duration: 0.2 } }}
+    <button
+      type="button"
+      className="landing-primary-btn"
+      onClick={() => openAuthModal('register', '/dashboard')}
     >
-      <div className="song-card-art-wrapper">
-        <img className="song-card-art" src={song.artUrl} alt={song.title} />
-        <div className="song-card-play-overlay" onClick={() => playTrack({ id: song.id, title: song.title, artist: song.artist, artUrl: song.artUrl })}>
-          <button className="play-btn-circle">▶</button>
-        </div>
-      </div>
-      <div className="song-card-info">
-        <div className="song-card-title">{song.title}</div>
-        <div className="song-card-artist">{song.artist}</div>
-      </div>
-    </motion.div>
+      Upgrade to Pro
+    </button>
   );
 }
 
 export default function HomePage() {
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
-  };
-  const itemVariants = {
-    hidden: { opacity: 0, y: 30 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
-  };
+  const { isAuthenticated, openAuthModal } = useAuth();
 
   return (
-    <motion.div initial="hidden" animate="visible" variants={containerVariants}>
-      {/* Hero */}
-      <div className="hero">
-        <motion.div className="hero-left" variants={itemVariants}>
-          <div className="hero-label">The Power Of</div>
-          <h1 className="hero-title">Music Business<br />Administration</h1>
-          <p className="hero-desc">Put your music career on the fast lane. <strong>Promote, distribute</strong> and <strong>monetize</strong> with Bouut Music.</p>
-          <Link href="/dashboard" className="btn btn-outline btn-lg" style={{ display: 'inline-flex', width: 'fit-content' }}>
-            Join For Free
-          </Link>
-          <div className="hero-artists">
-            <div className="hero-avatars">
-              {ARTISTS.slice(0, 4).map(a => (
-                <img key={a.id} className="hero-avatar" src={a.avatar} alt={a.name} />
+    <motion.div className="landing-page" initial="hidden" animate="visible" variants={containerVariants}>
+      <motion.section className="landing-hero" variants={sectionVariants}>
+        <div className="landing-hero-copy">
+          <span className="landing-kicker">The Power Of</span>
+          <h1 className="landing-hero-title">Music Business Administration</h1>
+          <p className="landing-hero-description">
+            Put your music career on the fast lane. <strong>Promote, distribute</strong> and <strong>monetize</strong>
+            {' '}with Bouut Music in one connected workspace.
+          </p>
+
+          <div className="landing-hero-actions">
+            <PrimaryHeroAction isAuthenticated={isAuthenticated} openAuthModal={openAuthModal} />
+            <Link href="/dashboard/subscription" className="landing-secondary-link">
+              Explore Pro
+            </Link>
+          </div>
+
+          <div className="landing-community">
+            <div className="landing-avatar-stack">
+              {communityFaces.map(face => (
+                <img key={face} src={face} alt="Bouut artist" className="landing-avatar" />
               ))}
+              <div className="landing-avatar-badge">70K+</div>
             </div>
-            <div className="hero-count" style={{ width: 36, height: 36, marginLeft: 8 }}>70K+</div>
-            <span style={{ fontSize: 13, color: '#6b7280', marginLeft: 8 }}>Artists trust us</span>
-          </div>
-        </motion.div>
-        <motion.div className="hero-right" variants={itemVariants}>
-          <img
-            src="https://images.unsplash.com/photo-1598387993281-cecf8b71a8f8?w=600&h=500&fit=crop"
-            alt="Artist performing"
-          />
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(230,57,70,0.8)', mixBlendMode: 'multiply' }} />
-          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'white', borderRadius: '50%', width: 200, height: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#d4af37', lineHeight: 1.2 }}>THE MUSIC<br />BUSINESS<br />ADMINISTRATORS</div>
-            <div style={{ background: 'var(--primary)', color: 'white', padding: '4px 10px', borderRadius: 3, marginTop: 8, fontWeight: 800, fontSize: 13 }}>bOUUT MUSIC</div>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Services */}
-      <div className="section">
-        <div className="section-header">
-          <div>
-            <div className="section-title">Everything You Need</div>
-            <div className="section-subtitle">All tools to grow your music career in one place</div>
+            <span className="landing-community-text">Artists trust us</span>
           </div>
         </div>
-        <motion.div className="service-cards" variants={containerVariants}>
-          {SERVICES.map(s => (
-            <motion.div key={s.title} className="service-card" variants={itemVariants} whileHover={{ y: -8 }}>
-              <div className="service-card-icon">{s.icon}</div>
-              <div className="service-card-title">{s.title}</div>
-              <div className="service-card-desc">{s.desc}</div>
-            </motion.div>
+
+        <div className="landing-hero-visual">
+          <div className="landing-poster-card">
+            <div className="landing-wave-pill" />
+            <img
+              src="https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=900&h=1100&fit=crop"
+              alt="Bouut featured artist"
+              className="landing-poster-image"
+            />
+            <div className="landing-poster-badge">
+              <span>The Music Business Administrators</span>
+              <strong>Bouut Music</strong>
+            </div>
+          </div>
+        </div>
+      </motion.section>
+
+      <motion.section className="landing-section-block" variants={sectionVariants}>
+        <div className="landing-section-header">
+          <div>
+            <p className="landing-section-eyebrow">Bouut Rocks</p>
+            <h2 className="landing-section-title">Distribution</h2>
+          </div>
+          <p className="landing-section-intro">
+            Release with confidence, stay organized, and keep every track working harder across stores and streaming services.
+          </p>
+        </div>
+
+        <div className="landing-distribution-grid">
+          {distributionCards.map(card => (
+            <article key={card.title} className="landing-info-card">
+              <div className="landing-info-icon">{card.icon}</div>
+              <h3 className="landing-info-title">{card.title}</h3>
+              <p className="landing-info-description">{card.description}</p>
+            </article>
           ))}
-        </motion.div>
-      </div>
-
-      {/* Recommended Songs */}
-      <div className="section">
-        <div className="section-header">
-          <div>
-            <div className="section-title">Recommended Songs</div>
-            <div className="section-subtitle">New releases selected by the editorial team for you</div>
-          </div>
-          <Link href="/songs" className="btn btn-ghost btn-sm">View All</Link>
         </div>
-        <motion.div className="cards-grid-5" variants={containerVariants}>
-          {MOCK_SONGS.map(song => <SongCard key={song.id} song={song} />)}
-        </motion.div>
-      </div>
 
-      {/* Featured Artists */}
-      <div className="section">
-        <div className="section-header">
-          <div>
-            <div className="section-title">Featured Artists</div>
-            <div className="section-subtitle">Discover talented independent musicians</div>
-          </div>
-          <Link href="/artists" className="btn btn-ghost btn-sm">View All</Link>
+        <div className="landing-section-action">
+          <Link href="/dashboard/release" className="landing-link-btn">
+            Distribute Music
+          </Link>
         </div>
-        <motion.div className="cards-grid-5" variants={containerVariants}>
-          {ARTISTS.map(a => (
-            <motion.div key={a.id} variants={itemVariants} whileHover={{ y: -8 }}>
-              <Link href={`/artists/${a.id}`} className="card artist-card" style={{ textDecoration: 'none', color: 'inherit', display: 'block', height: '100%' }}>
-                <img className="artist-avatar" src={a.avatar} alt={a.name} />
-                <div className="artist-name">{a.name}</div>
-                <div className="artist-genre">{a.genre}</div>
-              </Link>
-            </motion.div>
-          ))}
-        </motion.div>
-      </div>
+      </motion.section>
 
-      {/* Footer */}
-      <Footer />
+      <motion.section className="landing-two-column landing-two-column-promo" variants={sectionVariants}>
+        <div className="landing-column-copy">
+          <p className="landing-section-eyebrow">Bouut Rocks</p>
+          <h2 className="landing-section-title">Promotion</h2>
+          <p className="landing-section-intro landing-section-intro-left">
+            Turn releases into bigger moments and give your music more ways to travel through media, promo, and discovery surfaces.
+          </p>
+
+          <div className="landing-number-grid">
+            {promotionCards.map(card => (
+              <article key={card.title} className="landing-number-card">
+                <div className="landing-number-badge">{card.step}</div>
+                <h3 className="landing-number-title">{card.title}</h3>
+                <p className="landing-number-description">{card.description}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="landing-section-action landing-section-action-left">
+            <Link href="/dashboard/promo-tools" className="landing-link-btn">
+              Promote Your Music
+            </Link>
+          </div>
+        </div>
+
+        <div className="landing-visual-panel landing-visual-panel-blue">
+          <div className="landing-visual-chip">
+            <Sparkles size={16} />
+            <span>Promotion</span>
+          </div>
+          <div className="landing-visual-frame landing-visual-frame-right">
+            <img
+              src="https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=900&h=1100&fit=crop"
+              alt="Bouut promotion visual"
+              className="landing-visual-image"
+            />
+          </div>
+        </div>
+      </motion.section>
+
+      <motion.section className="landing-two-column landing-two-column-money" variants={sectionVariants}>
+        <div className="landing-visual-panel landing-visual-panel-indigo">
+          <div className="landing-visual-chip">
+            <Coins size={16} />
+            <span>Monetize</span>
+          </div>
+          <div className="landing-visual-frame landing-visual-frame-left">
+            <img
+              src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=900&h=1100&fit=crop"
+              alt="Bouut monetization visual"
+              className="landing-visual-image"
+            />
+          </div>
+        </div>
+
+        <div className="landing-list-panel">
+          <h2 className="landing-section-title">How To Make Your Music Make Money</h2>
+          <div className="landing-list-stack">
+            {moneyPoints.map(point => (
+              <article key={point.title} className="landing-list-item">
+                <div className="landing-list-icon">{point.icon}</div>
+                <div>
+                  <h3>{point.title}</h3>
+                  <p>{point.text}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="landing-section-action landing-section-action-left">
+            <Link href="/dashboard/opportunities" className="landing-link-btn">
+              Explore Opportunities
+            </Link>
+          </div>
+        </div>
+      </motion.section>
+
+      <motion.section className="landing-network-strip" variants={sectionVariants}>
+        <div className="landing-network-inner">
+          <Users2 size={18} />
+          <span>Join A Network Of 70K+ Emerging And Major Artists</span>
+        </div>
+      </motion.section>
+
+      <motion.section className="landing-two-column landing-two-column-growth" variants={sectionVariants}>
+        <div className="landing-growth-panel">
+          <h2 className="landing-section-title">Accelerate Your Music Career, Your Way</h2>
+          <div className="landing-growth-list">
+            {growthPoints.map((point, index) => (
+              <article key={point} className="landing-growth-item">
+                <div className="landing-growth-badge">{index + 1}</div>
+                <p>{point}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="landing-section-action landing-section-action-left">
+            <Link href="/dashboard" className="landing-link-btn">
+              Elevate Your Music
+            </Link>
+          </div>
+        </div>
+
+        <div className="landing-visual-panel landing-visual-panel-gold">
+          <div className="landing-visual-frame landing-visual-frame-offset">
+            <img
+              src="https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=900&h=1100&fit=crop"
+              alt="Bouut artist guitar visual"
+              className="landing-visual-image"
+            />
+          </div>
+        </div>
+      </motion.section>
+
+      <motion.section className="landing-video-card" variants={sectionVariants}>
+        <img
+          src="https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=1400&h=780&fit=crop"
+          alt="Bouut video feature"
+          className="landing-video-image"
+        />
+        <div className="landing-video-overlay" />
+        <div className="landing-video-copy">
+          <span className="landing-video-tag">Bouut | The Music Business Administrators</span>
+          <h2>Born To Be Wildly Successful</h2>
+          <p>One connected system for distributing, promoting, and monetizing your music.</p>
+          <a
+            href="https://www.youtube.com/@bouutmusic"
+            target="_blank"
+            rel="noreferrer"
+            className="landing-video-play"
+          >
+            <Play size={18} fill="currentColor" />
+          </a>
+        </div>
+      </motion.section>
+
+      <motion.section className="landing-cta-stack" variants={sectionVariants}>
+        {closingCtas.map(card => (
+          <article key={card.action} className="landing-cta-card">
+            <span className="landing-cta-eyebrow">{card.eyebrow}</span>
+            <h2 className="landing-cta-title">{card.title}</h2>
+            <p className="landing-cta-text">{card.text}</p>
+            <button
+              type="button"
+              className="landing-cta-link"
+              onClick={() => {
+                if (isAuthenticated) {
+                  window.location.href = '/dashboard';
+                  return;
+                }
+
+                openAuthModal('register', '/dashboard');
+              }}
+            >
+              {card.action} <ArrowRight size={14} />
+            </button>
+          </article>
+        ))}
+      </motion.section>
     </motion.div>
   );
 }

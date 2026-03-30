@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { buildArtistSlug, calculateProfileProgress, serializeArtistTypes } from './utils/profile';
+import { encryptSecret } from './lib/payu';
 
 const prisma = new PrismaClient();
 
@@ -61,6 +63,46 @@ const ARTIST_AVATARS = [
     'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face',
 ];
 
+const ARTIST_BANNERS = [
+    'https://images.unsplash.com/photo-1598387993281-cecf8b71a8f8?w=1200&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=1200&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1200&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=1200&h=400&fit=crop',
+];
+
+const ARTIST_TYPES = [
+    ['Singer', 'Singer-Songwriter'],
+    ['Band'],
+    ['DJ', 'Producer'],
+    ['Composer'],
+];
+
+function getLocationMeta(city: string) {
+    const normalizedCity = city.toLowerCase();
+
+    if (['lahore', 'karachi'].includes(normalizedCity)) {
+        return { country: 'Pakistan', state: normalizedCity === 'lahore' ? 'Punjab' : 'Sindh' };
+    }
+
+    if (normalizedCity === 'kerala') {
+        return { country: 'India', state: 'Kerala' };
+    }
+
+    if (normalizedCity === 'bangalore') {
+        return { country: 'India', state: 'Karnataka' };
+    }
+
+    if (normalizedCity === 'varanasi') {
+        return { country: 'India', state: 'Uttar Pradesh' };
+    }
+
+    if (normalizedCity === 'amritsar') {
+        return { country: 'India', state: 'Punjab' };
+    }
+
+    return { country: 'India', state: city };
+}
+
 // Use a free MP3 sample for all songs (for demo purposes)
 const DEMO_AUDIO_URL = 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';
 
@@ -81,6 +123,7 @@ async function main() {
     await prisma.post.deleteMany();
     await prisma.opportunity.deleteMany();
     await prisma.service.deleteMany();
+    await prisma.payuSettings.deleteMany();
     await prisma.user.deleteMany();
 
     console.log('🗑️  Cleared existing data');
@@ -93,10 +136,17 @@ async function main() {
             email: 'admin@bouutmusic.com',
             passwordHash: adminHash,
             role: 'ADMIN',
+            slug: buildArtistSlug('Bouut Admin', 'admin@bouutmusic.com', 'bouut-admin'),
             isPro: true,
             bio: 'Platform administrator',
             genre: 'All',
             avatar: ARTIST_AVATARS[0],
+            banner: ARTIST_BANNERS[0],
+            artistTypes: serializeArtistTypes(['Label']),
+            country: 'India',
+            state: 'Maharashtra',
+            city: 'Mumbai',
+            onboardingCompleted: true,
             profileProgress: 100,
         },
     });
@@ -107,18 +157,39 @@ async function main() {
     for (let i = 0; i < ARTISTS.length; i++) {
         const a = ARTISTS[i];
         const hash = await bcrypt.hash('password123', 12);
+        const locationMeta = getLocationMeta(a.city);
+        const artistTypes = ARTIST_TYPES[i % ARTIST_TYPES.length];
+        const email = `${a.name.toLowerCase().replace(/\s/g, '.')}@bouutmusic.com`;
         const user = await prisma.user.create({
             data: {
                 name: a.name,
-                email: `${a.name.toLowerCase().replace(/\s/g, '.')}@bouutmusic.com`,
+                email,
                 passwordHash: hash,
                 role: 'ARTIST',
+                slug: buildArtistSlug(a.name, email, `artist-${i}`),
                 bio: a.bio,
+                artistTypes: serializeArtistTypes(artistTypes),
                 genre: a.genre,
+                country: locationMeta.country,
+                state: locationMeta.state,
                 city: a.city,
                 avatar: ARTIST_AVATARS[i % ARTIST_AVATARS.length],
+                banner: ARTIST_BANNERS[i % ARTIST_BANNERS.length],
                 isPro: i < 5,  // first 5 artists are Pro
-                profileProgress: 20 + Math.floor(Math.random() * 80),
+                onboardingCompleted: true,
+                profileProgress: calculateProfileProgress({
+                    avatar: ARTIST_AVATARS[i % ARTIST_AVATARS.length],
+                    banner: ARTIST_BANNERS[i % ARTIST_BANNERS.length],
+                    bio: a.bio,
+                    artistTypes,
+                    genre: a.genre,
+                    country: locationMeta.country,
+                    state: locationMeta.state,
+                    city: a.city,
+                    instagram: `@${a.name.toLowerCase().replace(/\s/g, '_')}`,
+                    twitter: `@${a.name.toLowerCase().replace(/\s/g, '')}`,
+                    youtube: `https://youtube.com/${a.name.replace(/\s/g, '')}`,
+                }),
                 instagram: `@${a.name.toLowerCase().replace(/\s/g, '_')}`,
                 twitter: `@${a.name.toLowerCase().replace(/\s/g, '')}`,
                 youtube: `https://youtube.com/${a.name.replace(/\s/g, '')}`,
@@ -233,7 +304,7 @@ async function main() {
     const services = [
         { name: 'Submit my demo', description: 'Accepting demos from all genres for review. Get featured on our page and attached for potentially big opportunities.', price: 0, features: ['Review within 7 days', 'All genres accepted', 'Social media feature potential'] },
         { name: 'Release your music with us', description: 'Professional distribution to all major platforms including Spotify, Apple Music, and Amazon Music.', price: 299, features: ['Fast distribution', 'Royalty collection', 'Technical support'] },
-        { name: 'Get playlisted', description: 'Submit your tracks to our curated playlists and reach new audiences.', price: 1499, features: ['Playlist consideration', 'Genre matching', 'Audience growth'] },
+        { name: 'Get playlisted', description: 'Submit your tracks to our curated playlists and reach new audiences.', price: 0, features: ['Playlist consideration', 'Genre matching', 'Audience growth'] },
         { name: 'Promote my music', description: 'Custom digital marketing campaigns to give your release the boost it needs.', price: 4999, features: ['Social ads', 'Influencer reach', 'Detailed analytics'] },
         { name: 'Collaborate with us', description: 'Looking to partner on projects or explore mutual growth? Let\'s connect.', price: 0, features: ['Brand partnerships', 'Event collaboration', 'Project pitch'] },
     ];
@@ -322,12 +393,32 @@ async function main() {
         },
     });
 
+    // 13. Seed PayU India payment settings
+    await prisma.payuSettings.create({
+        data: {
+            mode: 'test',
+            isEnabled: true,
+            merchantId: '8438541',
+            merchantKey: 'UX1TdR',
+            salt1Encrypted: encryptSecret('FsvJ2fBMtdVu8OzRxzTvKa97px4olqCr'),
+            salt2Encrypted: encryptSecret('MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC/9U7P2HP1Ag/mZo4U0rfOis3b8x7VGmDXFasZ08ihAkKejHptpaQ699iLNqVr+2Gr5I3JeuSR70Ng8G90wi27KNkweky9Rg+lw5DKsz6phlJGz3a+T2xcua7HkPKO3XyUqpZsarxvSqg6vy8AcbkF5hsqJPgpkMwn+vhaR8LCM+NKstvmupTyrolDzCGgm1QE7Rd7PyXt6EEHsMu/bLlxPJqw6Cj1jca11Ms7awwM6HDrxr9bRZRgIUiXlzo4CD2J9J8ojhdGHQXKbULYov6Pvpp9ErQ26kc3yKTikqJR+/uJeGzvxCczt/SgVTXmk8tPWLT9xGq0SggQAgrMzr0vAgMBAAECggEBAJEP2m0rkAWZd1aQLdMCorDNKGCNS8GTW5du4ox0BWvXf2y9kE+IG6IMZnJd64i8wcTaxWN7IXw/KdX6HOBJVbHYXrlJ0vA+H9kO/z6PUk1eGpM0ePG8p5EzKSfbG9JnApx+hYqM5rXb32H11JkrV71jdSfWJEuVBxM3j7L6A+4pZNSI408Z+zrXmIpGxaJETN0rj3Kj2GgDEM1O/BGwUy/i2z5UHoELtJiLLa9Tr771/NETEJdJ7VOLo06HoJiJIvuSXR0p4Q2+5zPmaDjx+4WQ4lgo0gYvP8lYnmnw7aZA9KwyUwuDoGowBbAywjV4+fydArEhT45hwKMBhNHreECgYEA5h883hTTJ+3dRnicvM627HIw+1goccaBBOc9JqGdcyZYjuKGPks/Y5QB8QmnNbNWdPZ76LVB942LAM/iv6Yi44RjjYcu5qiAGNW6vbcLQApfDSNZyTeBt8em4+GC4RhJlFeP9C7zV/1/gGkOafNjoQWGOIbmCgjxcP1C+yZk33kCgYEA1YtozQ49gjpnxm2b7DN2bvJpLNzoWmEiJvE375aDoHruaMeydKvtnXKQiw3qgZh3+BX61cl5+3w+nWcKi0YFnJvDYxmvWdbSKCmkb/olXuKB4FM9UDk/3UC1ns+dFsKZbJ+5vnUVMRfvG2zlLQ6HAsxL2rrzrIFMIwS2WnL5D+cCgYBAPWIpgNi9YcqOnKbskixAb1Q7Jg4MTOTBcKgCe8VPWtoH8TaWdz0X2D5+gjpaZFjzR8epW8gxiiLOtDnRVFiS+OctoBo4q7sus6NwyINseji0mzS6VjNxEVwGa3K00angrlzyRpUJ8CtCtpEehKJAViF08DuRe5Oi/iBPqhUoyQKBgD55E4byBJKlzZhilrwqbhqVNqnWUu+l/RzRcyDXsthvPnJPAelaJyDp1FmqD5IsbeSZYZHL6LDnL1ZTP+Vw7dFcTHQgnok07LStQhs0Xlx8/awIDib7KLDs7nVwna977PC3ZdrPXAzJyL0IRZ/B4UOzSvnJueIczY5tIYAipLS/AoGAWZCckhlfvXASwgK9lAoKfExTGTEFGZXtaxFe1T64aP4PCbkGsnNOFMgjxDmve38mf8BoRSEr61Lx9etBgkAYu1B+3Cx0lZ5qlIpHhvWXeLsqVoyAgYRatB69DQVMTTVChu9x4EpINdsatYUlLbZPgnDRXa/vt0AhWEl7qDkVmRo='),
+            currency: 'INR',
+            productName: 'Songdew Pro',
+            originalAmount: 4000,
+            discountedAmount: 2000,
+            taxPercent: 18,
+            proDurationDays: 365,
+        },
+    });
+
     console.log('\n🎉 Database seeding complete!');
     console.log('\n📋 Test Credentials:');
     console.log('  Admin: admin@bouutmusic.com / admin123');
     console.log('  Artist: aryan.kapoor@bouutmusic.com / password123 (Pro)');
     console.log('  Artist: noman.said@bouutmusic.com / password123');
     console.log('  Listener: listener@bouutmusic.com / password123');
+    console.log('  PayU Test Merchant ID: 8438541');
+    console.log('  PayU Test Merchant Key: UX1TdR');
     console.log(`\n  Total: ${artistUsers.length + 2} users, ${songs.length} songs, ${albums.length} albums`);
 }
 

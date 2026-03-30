@@ -26,3 +26,11 @@ yarn-error.log*
 # System Files
 .DS_Store
 Thumbs.db
+
+# Local scratch files
+.codex-runlogs/
+temp/
+songdew_distribute.html
+songdew_main.js
+backend/package/
+backend/payu-websdk-1.3.1.tgz

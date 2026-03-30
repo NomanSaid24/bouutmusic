@@ -5,7 +5,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -15,9 +15,14 @@ model User {
   email         String    @unique
   passwordHash  String
   role          String    @default("ARTIST") // LISTENER, ARTIST, ADMIN
+  slug          String?   @unique
   avatar        String?
+  banner        String?
   bio           String?
+  artistTypes   String?
   genre         String?
+  country       String?
+  state         String?
   city          String?
   website       String?
   instagram     String?
@@ -27,6 +32,7 @@ model User {
   spotify       String?
   isPro         Boolean   @default(false)
   proExpiresAt  DateTime?
+  onboardingCompleted Boolean @default(false)
   profileProgress Int     @default(4)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -157,7 +163,17 @@ model Service {
 model Submission {
   id          String            @id @default(cuid())
   type        String            // opportunity | service
-  status      String            @default("PENDING") // PENDING, APPROVED, REJECTED
+  status      String            @default("PENDING") // PENDING_PAYMENT, PENDING, APPROVED, REJECTED
+  paymentStatus String          @default("UNPAID") // UNPAID, PAID, FAILED, NOT_REQUIRED, REFUND_PENDING, REFUNDED, REFUND_FAILED
+  paymentRequired Boolean       @default(false)
+  paymentAmount Float?
+  paymentCurrency String?
+  paymentCompletedAt DateTime?
+  reviewedAt  DateTime?
+  reviewedById String?
+  rejectionReason String?
+  refundRequestedAt DateTime?
+  refundedAt  DateTime?
   notes       String?
   adminNotes  String?
   createdAt   DateTime          @default(now())
@@ -177,11 +193,47 @@ model Payment {
   id              String        @id @default(cuid())
   amount          Float
   currency        String        @default("INR")
-  gateway         String        @default("razorpay")
+  gateway         String        @default("payu")
   gatewayOrderId  String?
   gatewayPaymentId String?
   status          String        @default("PENDING") // PENDING, COMPLETED, FAILED, REFUNDED
   type            String        // subscription | service
+  description     String?
+  amountSubtotal  Float?
+  taxAmount       Float?
+  billingName     String?
+  billingEmail    String?
+  billingPhone    String?
+  billingAddress1 String?
+  billingAddress2 String?
+  billingCountry  String?
+  billingCountryCode String?
+  billingState    String?
+  billingStateCode String?
+  billingCity     String?
+  billingPostalCode String?
+  promoCode       String?
+  payuTxnId       String?       @unique
+  payuMihpayId    String?
+  payuBankRefNum  String?
+  payuPaymentMode String?
+  payuStatus      String?
+  payuUnmappedStatus String?
+  payuHash        String?
+  payuRequestPayload String?
+  payuResponse    String?
+  payuVerifiedResponse String?
+  gatewayReceiptImageUrl String?
+  refundStatus    String        @default("NONE") // NONE, INITIATED, REFUNDED, FAILED
+  refundAmount    Float?
+  refundRequestId String?
+  refundTokenId   String?
+  refundReason    String?
+  refundResponse  String?
+  refundRequestedAt DateTime?
+  refundedAt      DateTime?
+  failureMessage  String?
+  completedAt     DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -189,6 +241,24 @@ model Payment {
   userId          String
   submission      Submission?   @relation(fields: [submissionId], references: [id])
   submissionId    String?       @unique
+}
+
+model PayuSettings {
+  id                    String   @id @default(cuid())
+  mode                  String   @default("test")
+  isEnabled             Boolean  @default(false)
+  merchantId            String?
+  merchantKey           String?
+  salt1Encrypted        String?
+  salt2Encrypted        String?
+  currency              String   @default("INR")
+  productName           String   @default("Songdew Pro")
+  originalAmount        Float    @default(4000)
+  discountedAmount      Float    @default(2000)
+  taxPercent            Float    @default(18)
+  proDurationDays       Int      @default(365)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 model Post {

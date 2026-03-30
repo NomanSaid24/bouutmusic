@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { sanitizeArtistTypes } from '../utils/profile';
 
 const router = Router();
 
@@ -17,24 +18,36 @@ router.get('/', async (req, res: Response) => {
                 where,
                 skip,
                 take: parseInt(limit as string),
-                select: { id: true, name: true, avatar: true, genre: true, city: true, bio: true, isPro: true, createdAt: true },
+                select: { id: true, slug: true, name: true, avatar: true, genre: true, city: true, country: true, state: true, bio: true, artistTypes: true, isPro: true, createdAt: true },
                 orderBy: { createdAt: 'desc' },
             }),
             prisma.user.count({ where }),
         ]);
-        return res.json({ artists, total });
+        return res.json({
+            artists: artists.map(artist => ({
+                ...artist,
+                artistTypes: sanitizeArtistTypes(artist.artistTypes),
+            })),
+            total,
+        });
     } catch {
         return res.status(500).json({ error: 'Failed to fetch artists' });
     }
 });
 
-// GET /api/artists/:id
-router.get('/:id', async (req, res: Response) => {
+// GET /api/artists/:identifier
+router.get('/:identifier', async (req, res: Response) => {
     try {
-        const artist = await prisma.user.findUnique({
-            where: { id: req.params.id },
+        const artist = await prisma.user.findFirst({
+            where: {
+                role: { in: ['ARTIST', 'ADMIN'] },
+                OR: [
+                    { id: req.params.identifier },
+                    { slug: req.params.identifier },
+                ],
+            },
             select: {
-                id: true, name: true, avatar: true, bio: true, genre: true, city: true, website: true,
+                id: true, slug: true, name: true, avatar: true, banner: true, bio: true, artistTypes: true, genre: true, country: true, state: true, city: true, website: true,
                 instagram: true, facebook: true, twitter: true, youtube: true, spotify: true, isPro: true,
                 songs: {
                     where: { privacy: 'PUBLIC', status: 'APPROVED' },
@@ -46,7 +59,11 @@ router.get('/:id', async (req, res: Response) => {
             },
         });
         if (!artist) return res.status(404).json({ error: 'Artist not found' });
-        return res.json({ ...artist, followerCount: artist.followers.length });
+        return res.json({
+            ...artist,
+            artistTypes: sanitizeArtistTypes(artist.artistTypes),
+            followerCount: artist.followers.length,
+        });
     } catch {
         return res.status(500).json({ error: 'Failed to fetch artist' });
     }
