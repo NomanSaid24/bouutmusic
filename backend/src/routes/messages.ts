@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { normalizeUserMedia } from '../utils/media';
 
 const router = Router();
 
@@ -14,7 +15,11 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
                 receiver: { select: { id: true, name: true, avatar: true } },
             },
         });
-        return res.json(messages);
+        return res.json(messages.map(message => ({
+            ...message,
+            sender: normalizeUserMedia(message.sender),
+            receiver: normalizeUserMedia(message.receiver),
+        })));
     } catch {
         return res.status(500).json({ error: 'Failed' });
     }
@@ -27,7 +32,10 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response) => {
             data: { senderId: req.user!.id, receiverId, content },
             include: { sender: { select: { id: true, name: true } } },
         });
-        return res.status(201).json(msg);
+        return res.status(201).json({
+            ...msg,
+            sender: normalizeUserMedia(msg.sender),
+        });
     } catch {
         return res.status(500).json({ error: 'Failed' });
     }

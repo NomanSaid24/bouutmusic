@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { sanitizeArtistTypes } from '../utils/profile';
+import { normalizeAlbumMedia, normalizeSongMedia, normalizeUserMedia } from '../utils/media';
 
 const router = Router();
 
@@ -25,7 +26,7 @@ router.get('/', async (req, res: Response) => {
         ]);
         return res.json({
             artists: artists.map(artist => ({
-                ...artist,
+                ...normalizeUserMedia(artist),
                 artistTypes: sanitizeArtistTypes(artist.artistTypes),
             })),
             total,
@@ -60,7 +61,9 @@ router.get('/:identifier', async (req, res: Response) => {
         });
         if (!artist) return res.status(404).json({ error: 'Artist not found' });
         return res.json({
-            ...artist,
+            ...normalizeUserMedia(artist),
+            songs: artist.songs.map(normalizeSongMedia),
+            albums: artist.albums.map(normalizeAlbumMedia),
             artistTypes: sanitizeArtistTypes(artist.artistTypes),
             followerCount: artist.followers.length,
         });

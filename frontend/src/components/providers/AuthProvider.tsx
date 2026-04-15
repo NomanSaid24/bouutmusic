@@ -209,6 +209,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const destination = pendingRedirect || (payload.user.role === 'ADMIN' ? '/admin' : '/dashboard');
         setPendingRedirect(null);
+
+        // A full navigation avoids protected-route races immediately after
+        // saving a fresh session in localStorage on production deploys.
+        if (typeof window !== 'undefined') {
+            window.location.assign(destination);
+            return;
+        }
+
         router.push(destination);
     }, [pendingRedirect, persistSession, router]);
 

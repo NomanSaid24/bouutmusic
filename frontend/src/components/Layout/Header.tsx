@@ -1,9 +1,11 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useMemo, useRef, useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Bell, ChevronDown, LogOut, MessageCircle, Search, Settings, Shield, User, X } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { ChevronDown, LogOut, Settings, Shield, User, X, Menu } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { Sidebar } from './Sidebar';
 
 function getInitials(name: string) {
     return name
@@ -12,6 +14,202 @@ function getInitials(name: string) {
         .slice(0, 2)
         .map(part => part[0]?.toUpperCase() ?? '')
         .join('') || 'BM';
+}
+
+interface DropdownItem {
+    label: string;
+    href: string;
+}
+
+interface NavEntry {
+    label: string;
+    href?: string;
+    requiresAuth?: boolean;
+    authMode?: 'login' | 'register';
+    children?: DropdownItem[];
+}
+
+const leftNav: NavEntry[] = [
+    { label: 'Dashboard', href: '/dashboard', requiresAuth: true },
+    { label: 'E-Press Kit', href: '/dashboard/epk', requiresAuth: true },
+    {
+        label: 'Release',
+        requiresAuth: true,
+        children: [
+            { label: 'Create Release', href: '/dashboard/release' },
+            { label: 'My Releases', href: '/dashboard/release/my-releases' },
+        ],
+    },
+    { label: 'Analytics', href: '/dashboard/analytics', requiresAuth: true },
+];
+
+const rightNavAuth: NavEntry[] = [
+    {
+        label: 'Finance',
+        requiresAuth: true,
+        children: [
+            { label: 'Revenue Report', href: '/dashboard/finance' },
+            { label: 'Royalty Splits', href: '/dashboard/finance' },
+        ],
+    },
+    { label: 'Promo Tools', href: '/dashboard/promo-tools', requiresAuth: false },
+    { label: 'Blogs', href: '/blogs', requiresAuth: false },
+    {
+        label: 'Discover',
+        children: [
+            { label: 'Playlists', href: '/playlists' },
+            { label: 'Artists', href: '/artists' },
+        ],
+    },
+];
+
+const rightNavGuest: NavEntry[] = [
+    { label: 'Promo Tools', href: '/dashboard/promo-tools', requiresAuth: false },
+    { label: 'Blogs', href: '/blogs', requiresAuth: false },
+    {
+        label: 'Discover',
+        children: [
+            { label: 'Playlists', href: '/playlists' },
+            { label: 'Artists', href: '/artists' },
+        ],
+    },
+];
+
+function NavDropdown({ entry }: { entry: NavEntry }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    const pathname = usePathname();
+    const { isAuthenticated, openAuthModal } = useAuth();
+
+    const isChildActive = entry.children?.some(c => pathname === c.href) ?? false;
+
+    useEffect(() => {
+        function handleClickOutside(e: MouseEvent) {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+        <div className="header-nav-dropdown" ref={ref}>
+            <button
+                className={`menu-item ${isChildActive ? 'is-active' : ''}`}
+                onClick={() => setOpen(o => !o)}
+            >
+                {entry.label}
+                <span className="menu-chev" />
+            </button>
+            {open && (
+                <div className="header-dropdown-menu">
+                    {entry.children!.map(child => (
+                        <Link
+                            key={child.href + child.label}
+                            href={child.href}
+                            className={`header-dropdown-item ${pathname === child.href ? 'active' : ''}`}
+                            onClick={(e) => {
+                                if (entry.requiresAuth && !isAuthenticated) {
+                                    e.preventDefault();
+                                    openAuthModal(entry.authMode || 'login', child.href);
+                                }
+                                setOpen(false);
+                            }}
+                        >
+                            {child.label}
+                        </Link>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function NavLink({ entry }: { entry: NavEntry }) {
+    const pathname = usePathname();
+    const { isAuthenticated, openAuthModal } = useAuth();
+
+    if (entry.children) {
+        return <NavDropdown entry={entry} />;
+    }
+
+    const isActive = entry.href
+        ? pathname === entry.href || (entry.href !== '/' && pathname.startsWith(entry.href + '/'))
+        : false;
+
+    return (
+        <Link
+            href={entry.href!}
+            className={`menu-item ${isActive ? 'is-active' : ''}`}
+            onClick={e => {
+                if (entry.requiresAuth && !isAuthenticated) {
+                    e.preventDefault();
+                    openAuthModal(entry.authMode || 'login', entry.href);
+                }
+            }}
+        >
+            {entry.label}
+        </Link>
+    );
+}
+
+function MobileNavLink({ entry, onClose }: { entry: NavEntry; onClose: () => void }) {
+    const pathname = usePathname();
+    const { isAuthenticated, openAuthModal } = useAuth();
+    const [expanded, setExpanded] = useState(false);
+
+    if (entry.children) {
+        const isChildActive = entry.children.some(c => pathname === c.href);
+        return (
+            <div>
+                <button
+                    className={`mobile-nav-item ${isChildActive ? 'is-active' : ''}`}
+                    onClick={() => setExpanded(o => !o)}
+                >
+                    {entry.label}
+                    <span className="menu-chev" />
+                </button>
+                {expanded && (
+                    <div className="mobile-dropdown-children">
+                        {entry.children.map(child => (
+                            <Link
+                                key={child.href + child.label}
+                                href={child.href}
+                                onClick={(e) => {
+                                    if (entry.requiresAuth && !isAuthenticated) {
+                                        e.preventDefault();
+                                        openAuthModal(entry.authMode || 'login', child.href);
+                                    }
+                                    onClose();
+                                }}
+                            >
+                                {child.label}
+                            </Link>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    const isActive = entry.href
+        ? pathname === entry.href || (entry.href !== '/' && pathname.startsWith(entry.href + '/'))
+        : false;
+
+    return (
+        <Link
+            href={entry.href!}
+            className={`mobile-nav-item ${isActive ? 'is-active' : ''}`}
+            onClick={e => {
+                if (entry.requiresAuth && !isAuthenticated) {
+                    e.preventDefault();
+                    openAuthModal(entry.authMode || 'login', entry.href);
+                }
+                onClose();
+            }}
+        >
+            {entry.label}
+        </Link>
+    );
 }
 
 export function Header() {
@@ -29,38 +227,30 @@ export function Header() {
         register,
         logout,
     } = useAuth();
-    const [showSearch, setShowSearch] = useState(false);
-    const [showProfile, setShowProfile] = useState(false);
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [mobileOpen, setMobileOpen] = useState(false);
 
     const profileLinks = useMemo(() => {
-        if (!user) {
-            return [];
-        }
-
+        if (!user) return [];
         const links = [
             { label: 'My Profile', href: '/dashboard', icon: <User size={14} /> },
             { label: 'Settings', href: '/dashboard/settings', icon: <Settings size={14} /> },
         ];
-
         if (isAdmin) {
             links.unshift({ label: 'Admin Dashboard', href: '/admin', icon: <Shield size={14} /> });
         }
-
         return links;
     }, [isAdmin, user]);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-
         try {
             if (authMode === 'login') {
                 await login({ email, password });
                 return;
             }
-
             await register({ name: fullName, email, password });
         } catch {
             // AuthProvider already exposes the user-facing error message.
@@ -69,84 +259,73 @@ export function Header() {
 
     return (
         <>
-            <header className="app-header">
-                <div />
+            <header className="topbar">
+                <div className="topbar-inner">
+                    {/* Mobile hamburger */}
+                    <button
+                        className={`mobile-menu-btn ${mobileOpen ? 'is-open' : ''}`}
+                        onClick={() => setMobileOpen(o => !o)}
+                        aria-label="Toggle menu"
+                    >
+                        <span />
+                        <span />
+                        <span />
+                    </button>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    {showSearch ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f4f6f9', borderRadius: 8, padding: '6px 12px', minWidth: 240 }}>
-                            <Search size={15} style={{ color: '#6b7280' }} />
-                            <input autoFocus placeholder="Search songs, artists..." style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 13, width: '100%', fontFamily: 'inherit' }} />
-                            <button onClick={() => setShowSearch(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', display: 'flex' }}><X size={14} /></button>
+                    {/* Left navigation */}
+                    <nav className="menu menu-left">
+                        {leftNav.map(entry => (
+                            <NavLink key={entry.label} entry={entry} />
+                        ))}
+                    </nav>
+
+                    {/* Center brand with arch */}
+                    <Link href="/" className="brand" aria-label="Bouut Music Home">
+                        <div className="brand-mark">
+                            <img
+                                src="/logo-light.png"
+                                alt="Bouut Music"
+                                className="brand-logo-img"
+                            />
                         </div>
-                    ) : (
-                        <button className="btn btn-ghost" style={{ padding: 8 }} onClick={() => setShowSearch(true)}><Search size={18} /></button>
-                    )}
+                    </Link>
 
-                    {isAuthenticated && user ? (
-                        <>
-                            <button className="btn btn-ghost" style={{ padding: 8, position: 'relative' }}>
-                                <MessageCircle size={18} />
-                                <span style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, background: '#e63946', borderRadius: '50%' }} />
-                            </button>
-                            <button className="btn btn-ghost" style={{ padding: 8, position: 'relative' }}>
-                                <Bell size={18} />
-                                <span style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, background: '#e63946', borderRadius: '50%' }} />
-                            </button>
-
-                            <div style={{ position: 'relative' }}>
-                                <button
-                                    onClick={() => setShowProfile(current => !current)}
-                                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}
-                                >
-                                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>
-                                        {getInitials(user.name)}
-                                    </div>
-                                    <ChevronDown size={14} style={{ color: '#6b7280' }} />
-                                </button>
-
-                                {showProfile && (
-                                    <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, width: 220, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden', zIndex: 300 }}>
-                                        <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb' }}>
-                                            <div style={{ fontWeight: 600, fontSize: 13 }}>{user.name}</div>
-                                            <div style={{ fontSize: 12, color: '#6b7280' }}>{user.email}</div>
-                                        </div>
-                                        {profileLinks.map(item => (
-                                            <Link key={item.href} href={item.href} onClick={() => setShowProfile(false)}
-                                                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', fontSize: 13, color: '#374151', textDecoration: 'none' }}
-                                                onMouseEnter={event => (event.currentTarget.style.background = '#f4f6f9')}
-                                                onMouseLeave={event => (event.currentTarget.style.background = 'transparent')}>
-                                                {item.icon}{item.label}
-                                            </Link>
-                                        ))}
-                                        <div style={{ borderTop: '1px solid #e5e7eb' }}>
-                                            <button
-                                                onClick={() => {
-                                                    setShowProfile(false);
-                                                    logout();
-                                                }}
-                                                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', fontSize: 13, color: '#e63946', background: 'none', border: 'none', cursor: 'pointer', width: '100%', fontFamily: 'inherit' }}
-                                            >
-                                                <LogOut size={14} /> Sign Out
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <button className="btn btn-ghost" onClick={() => openAuthModal('login')}>
-                                <User size={15} /> Sign in
-                            </button>
-                            <button className="btn btn-primary" onClick={() => openAuthModal('register')}>
-                                Register
-                            </button>
-                        </>
-                    )}
+                    {/* Right navigation */}
+                    <nav className="menu menu-right">
+                        {(isAuthenticated ? rightNavAuth : rightNavGuest).map(entry => (
+                            <NavLink key={entry.label} entry={entry} />
+                        ))}
+                    </nav>
                 </div>
             </header>
 
+            {/* Mobile drawer overlay */}
+            <div
+                className={`mobile-drawer-overlay ${mobileOpen ? 'is-open' : ''}`}
+                onClick={() => setMobileOpen(false)}
+            />
+
+            {/* Mobile drawer */}
+            <div className={`mobile-drawer ${mobileOpen ? 'is-open' : ''}`}>
+                <div className="mobile-drawer-nav">
+                    <div className="mobile-drawer-col">
+                        {leftNav.map(entry => (
+                            <MobileNavLink key={entry.label} entry={entry} onClose={() => setMobileOpen(false)} />
+                        ))}
+                    </div>
+                    <div className="mobile-drawer-col">
+                        {(isAuthenticated ? rightNavAuth : rightNavGuest).map(entry => (
+                            <MobileNavLink key={entry.label} entry={entry} onClose={() => setMobileOpen(false)} />
+                        ))}
+                    </div>
+                </div>
+                {/* Compact sidebar card in mobile drawer */}
+                <div style={{ width: '100%', paddingTop: 16 }}>
+                    <Sidebar compact />
+                </div>
+            </div>
+
+            {/* Auth Modal — unchanged */}
             {isAuthModalOpen && (
                 <div className="modal-overlay" onClick={event => event.target === event.currentTarget && closeAuthModal()}>
                     <div className="modal">

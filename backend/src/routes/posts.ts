@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import prisma from '../lib/prisma';
+import { normalizeUserMedia } from '../utils/media';
 
 const router = Router();
 
@@ -11,7 +12,10 @@ router.get('/', async (req, res: Response) => {
             orderBy: { publishedAt: 'desc' },
             include: { author: { select: { name: true, avatar: true } } },
         });
-        return res.json(posts);
+        return res.json(posts.map(post => ({
+            ...post,
+            author: normalizeUserMedia(post.author),
+        })));
     } catch {
         return res.status(500).json({ error: 'Failed' });
     }
@@ -25,7 +29,10 @@ router.get('/:slug', async (req, res: Response) => {
             include: { author: { select: { name: true, avatar: true } } },
         });
         if (!post) return res.status(404).json({ error: 'Post not found' });
-        return res.json(post);
+        return res.json({
+            ...post,
+            author: normalizeUserMedia(post.author),
+        });
     } catch {
         return res.status(500).json({ error: 'Failed' });
     }

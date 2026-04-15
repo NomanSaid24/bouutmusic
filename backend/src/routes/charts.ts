@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import prisma from '../lib/prisma';
+import { normalizeSongMedia } from '../utils/media';
 
 const router = Router();
 
@@ -17,7 +18,7 @@ router.get('/', async (req, res: Response) => {
             take: parseInt(limit as string),
             include: { artist: { select: { id: true, name: true, avatar: true } } },
         });
-        return res.json(songs);
+        return res.json(songs.map(normalizeSongMedia));
     } catch {
         return res.status(500).json({ error: 'Failed to fetch charts' });
     }

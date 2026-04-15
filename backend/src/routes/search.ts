@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import prisma from '../lib/prisma';
+import { normalizeAlbumMedia, normalizeSongMedia, normalizeUserMedia } from '../utils/media';
 
 const router = Router();
 
@@ -28,7 +29,12 @@ router.get('/', async (req, res: Response) => {
             }),
         ]);
 
-        return res.json({ songs, artists, albums, query: search });
+        return res.json({
+            songs: songs.map(normalizeSongMedia),
+            artists: artists.map(normalizeUserMedia),
+            albums: albums.map(normalizeAlbumMedia),
+            query: search,
+        });
     } catch {
         return res.status(500).json({ error: 'Search failed' });
     }

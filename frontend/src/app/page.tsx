@@ -1,22 +1,30 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import {
   ArrowRight,
   BadgeDollarSign,
-  BriefcaseBusiness,
-  Coins,
+  BarChart3,
+  ChevronDown,
+  Cloud,
   Globe2,
+  Headphones,
   Megaphone,
+  Music2,
   Play,
-  Radio,
-  Sparkles,
-  Tv,
+  Shield,
+  Upload,
   Users2,
+  Zap,
 } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
+gsap.registerPlugin(ScrollTrigger);
+
+/* ─── static data ─── */
 const communityFaces = [
   'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop&crop=face',
   'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop&crop=face',
@@ -24,362 +32,425 @@ const communityFaces = [
   'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=face',
 ];
 
-const distributionCards = [
+const platforms = [
+  'Spotify', 'Apple Music', 'TikTok', 'Amazon Music',
+  'YouTube', 'Tidal', 'Deezer', 'Amar Music', 'Rive',
+  'Cleand', 'Semicasing',
+];
+
+const howItWorks = [
+  { step: 1, icon: <Upload size={28} />, title: 'Upload Your Audio & Artwork', desc: 'Drag and drop your tracks, add metadata, and upload your cover art in minutes.' },
+  { step: 2, icon: <Globe2 size={28} />, title: 'Choose Your Global Stores', desc: 'Select from 150+ streaming platforms and digital stores worldwide.' },
+  { step: 3, icon: <BadgeDollarSign size={28} />, title: 'Collect 100% Royalties', desc: 'Keep full ownership and earn every cent your music generates.' },
+];
+
+const features = [
+  { icon: <Globe2 size={22} />, title: 'Global Distribution', desc: 'Reaching 100+ stores worldwide with a single upload.' },
+  { icon: <BarChart3 size={22} />, title: 'Real-time Analytics', desc: 'Advanced stream tracking and revenue insights.' },
+  { icon: <Megaphone size={22} />, title: 'Promotion Tools', desc: 'Smart links, playlist pitching, and social promo.' },
+  { icon: <BadgeDollarSign size={22} />, title: 'Royalty Splits', desc: 'Seamless payment distribution to collaborators.' },
+  { icon: <Shield size={22} />, title: 'Rights Management', desc: 'Protect and manage your intellectual property.' },
+  { icon: <Music2 size={22} />, title: 'Sync Licensing', desc: 'Film, TV, and advertising placement opportunities.' },
+  { icon: <Headphones size={22} />, title: 'Cover Song Licensing', desc: 'Legal rights managed for cover releases.' },
+];
+
+const pricingTiers = [
   {
-    icon: <Globe2 size={18} />,
-    title: 'Think Worldwide',
-    description: 'Take your music to global streaming platforms, digital stores, and curated catalog destinations from one place.',
+    name: 'Free Tier',
+    price: 'Free',
+    desc: 'Free to upload. Keep 80% of royalties.',
+    features: ['Unlimited uploads', '80% royalty rate', 'Basic analytics', 'Standard support', 'Global distribution'],
+    cta: 'Get Started Free',
+    popular: false,
   },
   {
-    icon: <Coins size={18} />,
-    title: 'Make Your Music Make Money The Right Way',
-    description: 'Collect royalties, keep your release data organized, and build a cleaner revenue engine for every drop.',
+    name: 'Pro',
+    price: '$4.99',
+    period: '/mo',
+    desc: 'Artist-first annual fee. Keep 100%, share features.',
+    features: ['Everything in Free', '100% royalty rate', 'Advanced analytics', 'Priority support', 'Playlist pitching', 'Smart links'],
+    cta: 'Upgrade to Pro',
+    popular: true,
   },
   {
-    icon: <Megaphone size={18} />,
-    title: 'Powerful Promotion Tools',
-    description: 'Push every release further with promo support, editorial opportunities, and better visibility across the platform.',
+    name: 'Label Pro',
+    price: '$14.99',
+    period: '/mo',
+    desc: 'Artist fee, vryunit fee, keep 100%, more features.',
+    features: ['Everything in Pro', 'Label dashboard', 'Multi-artist management', 'Custom branding', 'API access', 'Dedicated manager'],
+    cta: 'Contact Sales',
+    popular: false,
   },
 ];
 
-const promotionCards = [
-  {
-    step: '1',
-    title: 'Bouut TV',
-    description: 'Pitch videos, unlock platform exposure, and move your release into a more visible broadcast lane.',
-  },
-  {
-    step: '2',
-    title: 'Radio Broadcast',
-    description: 'Create a stronger release run with opportunities tailored for radio-ready music and discovery.',
-  },
-  {
-    step: '3',
-    title: 'Promotional Boost',
-    description: 'Launch better campaigns with smarter placement, stronger momentum, and cleaner storytelling.',
-  },
-  {
-    step: '4',
-    title: 'Exclusive Digital Tools',
-    description: 'Use platform-first tools that help you market releases with more confidence and control.',
-  },
+const faqs = [
+  { q: 'Do I keep my rights?', a: 'Absolutely. Bouut Music is non-exclusive. You retain 100% ownership of your masters and publishing rights at all times.' },
+  { q: 'How long to get on Spotify?', a: 'Most releases go live within 3–5 business days. We recommend submitting at least 2 weeks early for editorial playlist consideration.' },
+  { q: 'How do I get paid?', a: 'Royalties are paid monthly via PayPal, bank transfer, or Payoneer. You can track your earnings in real-time through your dashboard.' },
+  { q: 'Can I distribute cover songs?', a: 'Yes! We handle mechanical licensing for cover songs, so you can legally distribute your covers to all major platforms.' },
+  { q: 'Is there a contract or lock-in?', a: 'No long-term contracts. You can cancel anytime and take your music with you. We believe in earning your loyalty, not locking you in.' },
 ];
 
-const moneyPoints = [
-  {
-    icon: <BadgeDollarSign size={18} />,
-    title: 'Licensing With Brands',
-    text: 'Open your music for sync-friendly placements and brand-facing opportunities designed for independent artists.',
-  },
-  {
-    icon: <BriefcaseBusiness size={18} />,
-    title: 'Production Opportunities',
-    text: 'Find partnerships and commissioned work that can turn your catalog into recurring income.',
-  },
-  {
-    icon: <Radio size={18} />,
-    title: 'Live Performances',
-    text: 'Get closer to event organizers and performance opportunities that increase both reach and revenue.',
-  },
+const stats = [
+  { value: 70000, suffix: '+', label: 'Artists Worldwide' },
+  { value: 150, suffix: '+', label: 'Stores & Platforms' },
+  { value: 100, suffix: '%', label: 'Royalties Kept' },
+  { value: 50, suffix: 'M+', label: 'Streams Generated' },
 ];
 
-const growthPoints = [
-  'Build stronger momentum around every release with promotion, distribution, and monetization working together.',
-  'Reach your audience with smarter campaigns and get discovered by curators, brands, and partners faster.',
-  'Stay in control of your growth and understand what is working with practical data and artist-first tools.',
-  'Get access to opportunities that can push your music into playlists, publications, live stages, and media.',
-  'Keep your workflow simple with one connected system built to help independent artists move forward.',
-];
+/* ─── Animated counter ─── */
+function AnimatedCounter({ target, suffix }: { target: number; suffix: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [displayed, setDisplayed] = useState(0);
 
-const closingCtas = [
-  {
-    eyebrow: 'The Heart Of Bouut',
-    title: 'Experience The Power Of Music Business Administration',
-    text: 'Distribute, promote, and monetize all in one place.',
-    action: 'Be Part Of Bouut',
-  },
-  {
-    eyebrow: 'Built For Independent Artists',
-    title: 'Experience The Power Of Music Business Administration',
-    text: 'Visibility, revenue, and momentum in one clean system.',
-    action: 'Upgrade to Pro',
-  },
-];
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ctx = gsap.context(() => {
+      const obj = { val: 0 };
+      ScrollTrigger.create({
+        trigger: el,
+        start: 'top 85%',
+        once: true,
+        onEnter: () => {
+          gsap.to(obj, {
+            val: target,
+            duration: 2,
+            ease: 'power2.out',
+            onUpdate: () => setDisplayed(Math.floor(obj.val)),
+          });
+        },
+      });
+    });
+    return () => ctx.revert();
+  }, [target]);
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1 },
-  },
-};
+  return <span ref={ref}>{displayed.toLocaleString()}{suffix}</span>;
+}
 
-const sectionVariants = {
-  hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.55 } },
-};
-
-function PrimaryHeroAction({
-  isAuthenticated,
-  openAuthModal,
-}: {
-  isAuthenticated: boolean;
-  openAuthModal: (mode?: 'login' | 'register', redirectTo?: string) => void;
-}) {
-  if (isAuthenticated) {
-    return (
-      <Link href="/dashboard" className="landing-primary-btn">
-        Open Dashboard
-      </Link>
-    );
-  }
-
+/* ─── FAQ Item ─── */
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
   return (
-    <button
-      type="button"
-      className="landing-primary-btn"
-      onClick={() => openAuthModal('register', '/dashboard')}
-    >
-      Upgrade to Pro
-    </button>
+    <div className={`lp-faq-item ${open ? 'is-open' : ''}`}>
+      <button className="lp-faq-toggle" onClick={() => setOpen(o => !o)}>
+        <span>{q}</span>
+        <ChevronDown size={18} />
+      </button>
+      <div className="lp-faq-answer">{a}</div>
+    </div>
   );
 }
 
+/* ─── Page ─── */
 export default function HomePage() {
   const { isAuthenticated, openAuthModal } = useAuth();
+  const pageRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      /* Reveal every section on scroll */
+      gsap.utils.toArray<HTMLElement>('.lp-section').forEach(sec => {
+        gsap.from(sec, {
+          y: 60,
+          opacity: 0,
+          duration: 0.8,
+          ease: 'power3.out',
+          scrollTrigger: { trigger: sec, start: 'top 85%', once: true },
+        });
+      });
+
+      /* Stagger cards */
+      gsap.utils.toArray<HTMLElement>('.lp-stagger-parent').forEach(parent => {
+        const kids = parent.querySelectorAll('.lp-stagger-child');
+        gsap.from(kids, {
+          y: 40,
+          opacity: 0,
+          duration: 0.6,
+          stagger: 0.1,
+          ease: 'power3.out',
+          scrollTrigger: { trigger: parent, start: 'top 80%', once: true },
+        });
+      });
+    }, pageRef);
+
+    return () => ctx.revert();
+  }, []);
 
   return (
-    <motion.div className="landing-page" initial="hidden" animate="visible" variants={containerVariants}>
-      <motion.section className="landing-hero" variants={sectionVariants}>
-        <div className="landing-hero-copy">
-          <span className="landing-kicker">The Power Of</span>
-          <h1 className="landing-hero-title">Music Business Administration</h1>
-          <p className="landing-hero-description">
-            Put your music career on the fast lane. <strong>Promote, distribute</strong> and <strong>monetize</strong>
-            {' '}with Bouut Music in one connected workspace.
-          </p>
-
-          <div className="landing-hero-actions">
-            <PrimaryHeroAction isAuthenticated={isAuthenticated} openAuthModal={openAuthModal} />
-            <Link href="/dashboard/subscription" className="landing-secondary-link">
-              Explore Pro
-            </Link>
-          </div>
-
-          <div className="landing-community">
-            <div className="landing-avatar-stack">
-              {communityFaces.map(face => (
-                <img key={face} src={face} alt="Bouut artist" className="landing-avatar" />
-              ))}
-              <div className="landing-avatar-badge">70K+</div>
+    <div className="lp" ref={pageRef}>
+      {/* ── 1. HERO ── */}
+      <section className="lp-hero">
+        <div className="lp-hero-inner">
+          <div className="lp-hero-copy">
+            <span className="lp-kicker">The Power Of</span>
+            <h1 className="lp-hero-title">
+              UNLEASH YOUR<br />SOUND WORLDWIDE
+            </h1>
+            <p className="lp-hero-desc">
+              Your All-in-One Platform for Distribution, Promotion,
+              and Business Growth. Keep 100% of your rights.
+              Upload in Minutes.
+            </p>
+            <div className="lp-hero-actions">
+              {isAuthenticated ? (
+                <Link href="/dashboard" className="lp-btn lp-btn-primary">
+                  Open Dashboard
+                </Link>
+              ) : (
+                <button
+                  className="lp-btn lp-btn-primary"
+                  onClick={() => openAuthModal('register', '/dashboard')}
+                >
+                  GET STARTED NOW
+                </button>
+              )}
+              <Link href="/dashboard/subscription" className="lp-btn lp-btn-ghost">
+                Explore Pro
+              </Link>
             </div>
-            <span className="landing-community-text">Artists trust us</span>
+            <div className="lp-community">
+              <div className="lp-avatar-stack">
+                {communityFaces.map(src => (
+                  <img key={src} src={src} alt="Artist" className="lp-avatar" />
+                ))}
+                <div className="lp-avatar-badge">70K+</div>
+              </div>
+              <span className="lp-community-label">Artists trust us</span>
+            </div>
           </div>
-        </div>
-
-        <div className="landing-hero-visual">
-          <div className="landing-poster-card">
-            <div className="landing-wave-pill" />
-            <img
-              src="https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=900&h=1100&fit=crop"
-              alt="Bouut featured artist"
-              className="landing-poster-image"
-            />
-            <div className="landing-poster-badge">
-              <span>The Music Business Administrators</span>
-              <strong>Bouut Music</strong>
+          <div className="lp-hero-visual">
+            <div className="lp-dashboard-preview">
+              <img
+                src="https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=900&h=600&fit=crop"
+                alt="Dashboard preview"
+                className="lp-dashboard-img"
+              />
+              <div className="lp-dashboard-overlay" />
             </div>
           </div>
         </div>
-      </motion.section>
+      </section>
 
-      <motion.section className="landing-section-block" variants={sectionVariants}>
-        <div className="landing-section-header">
-          <div>
-            <p className="landing-section-eyebrow">Bouut Rocks</p>
-            <h2 className="landing-section-title">Distribution</h2>
-          </div>
-          <p className="landing-section-intro">
-            Release with confidence, stay organized, and keep every track working harder across stores and streaming services.
-          </p>
+      {/* ── 2. PLATFORM LOGOS ── */}
+      <section className="lp-section lp-platforms">
+        <div className="lp-platforms-track">
+          {[...platforms, ...platforms].map((name, i) => (
+            <span key={i} className="lp-platform-name">{name}</span>
+          ))}
         </div>
+      </section>
 
-        <div className="landing-distribution-grid">
-          {distributionCards.map(card => (
-            <article key={card.title} className="landing-info-card">
-              <div className="landing-info-icon">{card.icon}</div>
-              <h3 className="landing-info-title">{card.title}</h3>
-              <p className="landing-info-description">{card.description}</p>
+      {/* ── 3. HOW IT WORKS ── */}
+      <section className="lp-section lp-how">
+        <h2 className="lp-section-title">How It Works</h2>
+        <div className="lp-how-grid lp-stagger-parent">
+          {howItWorks.map(item => (
+            <article key={item.step} className="lp-card lp-how-card lp-stagger-child">
+              <div className="lp-how-icon">{item.icon}</div>
+              <div className="lp-how-step">Step {item.step}</div>
+              <h3>{item.title}</h3>
+              <p>{item.desc}</p>
             </article>
           ))}
         </div>
+      </section>
 
-        <div className="landing-section-action">
-          <Link href="/dashboard/release" className="landing-link-btn">
-            Distribute Music
-          </Link>
-        </div>
-      </motion.section>
-
-      <motion.section className="landing-two-column landing-two-column-promo" variants={sectionVariants}>
-        <div className="landing-column-copy">
-          <p className="landing-section-eyebrow">Bouut Rocks</p>
-          <h2 className="landing-section-title">Promotion</h2>
-          <p className="landing-section-intro landing-section-intro-left">
-            Turn releases into bigger moments and give your music more ways to travel through media, promo, and discovery surfaces.
-          </p>
-
-          <div className="landing-number-grid">
-            {promotionCards.map(card => (
-              <article key={card.title} className="landing-number-card">
-                <div className="landing-number-badge">{card.step}</div>
-                <h3 className="landing-number-title">{card.title}</h3>
-                <p className="landing-number-description">{card.description}</p>
-              </article>
-            ))}
-          </div>
-
-          <div className="landing-section-action landing-section-action-left">
-            <Link href="/dashboard/promo-tools" className="landing-link-btn">
-              Promote Your Music
+      {/* ── 4. MISSION ── */}
+      <section className="lp-section lp-mission">
+        <div className="lp-mission-inner">
+          <div className="lp-mission-copy">
+            <h2 className="lp-section-title" style={{ textAlign: 'left' }}>
+              Our Mission: Transparent Music Business Administration
+            </h2>
+            <p className="lp-mission-text">
+              More than distribution, we&apos;re your growth partners. We replicate the core theme of music administration,
+              making it a clear value proposition statement about empowering artists.
+              Integrate a powerful photo of an artist working, with stylized data points floating around them.
+            </p>
+            <Link href="/dashboard" className="lp-btn lp-btn-outline" style={{ marginTop: 16 }}>
+              Learn More <ArrowRight size={14} />
             </Link>
           </div>
-        </div>
-
-        <div className="landing-visual-panel landing-visual-panel-blue">
-          <div className="landing-visual-chip">
-            <Sparkles size={16} />
-            <span>Promotion</span>
-          </div>
-          <div className="landing-visual-frame landing-visual-frame-right">
+          <div className="lp-mission-visual">
             <img
-              src="https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=900&h=1100&fit=crop"
-              alt="Bouut promotion visual"
-              className="landing-visual-image"
+              src="https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=600&h=400&fit=crop"
+              alt="Artist in studio"
+              className="lp-mission-img"
             />
+            <div className="lp-mission-float lp-mission-float-1">
+              <Zap size={14} /> 13.0M Streams
+            </div>
+            <div className="lp-mission-float lp-mission-float-2">
+              <BarChart3 size={14} /> $4,000 Revenue
+            </div>
           </div>
         </div>
-      </motion.section>
+      </section>
 
-      <motion.section className="landing-two-column landing-two-column-money" variants={sectionVariants}>
-        <div className="landing-visual-panel landing-visual-panel-indigo">
-          <div className="landing-visual-chip">
-            <Coins size={16} />
-            <span>Monetize</span>
-          </div>
-          <div className="landing-visual-frame landing-visual-frame-left">
-            <img
-              src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=900&h=1100&fit=crop"
-              alt="Bouut monetization visual"
-              className="landing-visual-image"
-            />
-          </div>
+      {/* ── 5. FEATURES GRID ── */}
+      <section className="lp-section lp-features">
+        <h2 className="lp-section-title">How It Works</h2>
+        <p className="lp-section-subtitle">Everything you need to distribute, promote, and grow your music career.</p>
+        <div className="lp-features-grid lp-stagger-parent">
+          {features.map(f => (
+            <article key={f.title} className="lp-card lp-feature-card lp-stagger-child">
+              <div className="lp-feature-icon">{f.icon}</div>
+              <h3>{f.title}</h3>
+              <p>{f.desc}</p>
+            </article>
+          ))}
         </div>
+      </section>
 
-        <div className="landing-list-panel">
-          <h2 className="landing-section-title">How To Make Your Music Make Money</h2>
-          <div className="landing-list-stack">
-            {moneyPoints.map(point => (
-              <article key={point.title} className="landing-list-item">
-                <div className="landing-list-icon">{point.icon}</div>
-                <div>
-                  <h3>{point.title}</h3>
-                  <p>{point.text}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-
-          <div className="landing-section-action landing-section-action-left">
-            <Link href="/dashboard/opportunities" className="landing-link-btn">
-              Explore Opportunities
-            </Link>
-          </div>
-        </div>
-      </motion.section>
-
-      <motion.section className="landing-network-strip" variants={sectionVariants}>
-        <div className="landing-network-inner">
-          <Users2 size={18} />
-          <span>Join A Network Of 70K+ Emerging And Major Artists</span>
-        </div>
-      </motion.section>
-
-      <motion.section className="landing-two-column landing-two-column-growth" variants={sectionVariants}>
-        <div className="landing-growth-panel">
-          <h2 className="landing-section-title">Accelerate Your Music Career, Your Way</h2>
-          <div className="landing-growth-list">
-            {growthPoints.map((point, index) => (
-              <article key={point} className="landing-growth-item">
-                <div className="landing-growth-badge">{index + 1}</div>
-                <p>{point}</p>
-              </article>
-            ))}
-          </div>
-
-          <div className="landing-section-action landing-section-action-left">
-            <Link href="/dashboard" className="landing-link-btn">
-              Elevate Your Music
-            </Link>
-          </div>
-        </div>
-
-        <div className="landing-visual-panel landing-visual-panel-gold">
-          <div className="landing-visual-frame landing-visual-frame-offset">
-            <img
-              src="https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=900&h=1100&fit=crop"
-              alt="Bouut artist guitar visual"
-              className="landing-visual-image"
-            />
-          </div>
-        </div>
-      </motion.section>
-
-      <motion.section className="landing-video-card" variants={sectionVariants}>
-        <img
-          src="https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=1400&h=780&fit=crop"
-          alt="Bouut video feature"
-          className="landing-video-image"
-        />
-        <div className="landing-video-overlay" />
-        <div className="landing-video-copy">
-          <span className="landing-video-tag">Bouut | The Music Business Administrators</span>
-          <h2>Born To Be Wildly Successful</h2>
-          <p>One connected system for distributing, promoting, and monetizing your music.</p>
-          <a
-            href="https://www.youtube.com/@bouutmusic"
-            target="_blank"
-            rel="noreferrer"
-            className="landing-video-play"
-          >
-            <Play size={18} fill="currentColor" />
-          </a>
-        </div>
-      </motion.section>
-
-      <motion.section className="landing-cta-stack" variants={sectionVariants}>
-        {closingCtas.map(card => (
-          <article key={card.action} className="landing-cta-card">
-            <span className="landing-cta-eyebrow">{card.eyebrow}</span>
-            <h2 className="landing-cta-title">{card.title}</h2>
-            <p className="landing-cta-text">{card.text}</p>
-            <button
-              type="button"
-              className="landing-cta-link"
-              onClick={() => {
-                if (isAuthenticated) {
-                  window.location.href = '/dashboard';
-                  return;
-                }
-
-                openAuthModal('register', '/dashboard');
-              }}
+      {/* ── 6. PRICING ── */}
+      <section className="lp-section lp-pricing">
+        <h2 className="lp-section-title">Your Music, Your Money</h2>
+        <p className="lp-section-subtitle">Choose the plan that fits your journey.</p>
+        <div className="lp-pricing-grid lp-stagger-parent">
+          {pricingTiers.map(tier => (
+            <article
+              key={tier.name}
+              className={`lp-card lp-pricing-card lp-stagger-child ${tier.popular ? 'lp-pricing-popular' : ''}`}
             >
-              {card.action} <ArrowRight size={14} />
+              {tier.popular && <div className="lp-popular-badge">Most Popular</div>}
+              <h3 className="lp-pricing-name">{tier.name}</h3>
+              <div className="lp-pricing-price">
+                {tier.price}
+                {tier.period && <span className="lp-pricing-period">{tier.period}</span>}
+              </div>
+              <p className="lp-pricing-desc">{tier.desc}</p>
+              <ul className="lp-pricing-features">
+                {tier.features.map(f => (
+                  <li key={f}>✓ {f}</li>
+                ))}
+              </ul>
+              <button
+                className={`lp-btn ${tier.popular ? 'lp-btn-primary' : 'lp-btn-outline'}`}
+                onClick={() => {
+                  if (isAuthenticated) {
+                    window.location.href = '/dashboard/subscription';
+                  } else {
+                    openAuthModal('register', '/dashboard/subscription');
+                  }
+                }}
+              >
+                {tier.cta}
+              </button>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* ── 7. YOUTUBE SHOWCASE ── */}
+      <section className="lp-section lp-youtube">
+        <h2 className="lp-section-title">Watch Our Story</h2>
+        <p className="lp-section-subtitle">See how Bouut Music is empowering independent artists worldwide.</p>
+        <div className="lp-youtube-wrapper">
+          <iframe
+            src="https://www.youtube.com/embed/dQw4w9WgXcQ"
+            title="Bouut Music"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="lp-youtube-iframe"
+          />
+        </div>
+      </section>
+
+      {/* ── 8. SUCCESS STORIES ── */}
+      <section className="lp-section lp-testimonial">
+        <h2 className="lp-section-title">Artist Success Stories</h2>
+        <div className="lp-testimonial-card">
+          <blockquote className="lp-testimonial-quote">
+            &ldquo;Distribution changed my life. Bouut helped me reach audiences I never
+            imagined. The platform is intuitive, the support is incredible, and I&apos;ve
+            seen my streams grow exponentially.&rdquo;
+          </blockquote>
+          <div className="lp-testimonial-author">
+            <img
+              src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&h=120&fit=crop&crop=face"
+              alt="Sarah Jensen"
+              className="lp-testimonial-avatar"
+            />
+            <div>
+              <strong>Sarah Jensen</strong>
+              <a href="#" className="lp-testimonial-link">https://bouutmusic.app</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── 9. ARTIST COMMUNITY / STATS ── */}
+      <section className="lp-section lp-stats">
+        <div className="lp-stats-grid lp-stagger-parent">
+          {stats.map(s => (
+            <div key={s.label} className="lp-card lp-stat-card lp-stagger-child">
+              <div className="lp-stat-value">
+                <AnimatedCounter target={s.value} suffix={s.suffix} />
+              </div>
+              <div className="lp-stat-label">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── 10. FAQ ── */}
+      <section className="lp-section lp-faq">
+        <h2 className="lp-section-title">FAQ</h2>
+        <div className="lp-faq-list">
+          {faqs.map(f => (
+            <FaqItem key={f.q} q={f.q} a={f.a} />
+          ))}
+        </div>
+      </section>
+
+      {/* ── 11. CONTACT US ── */}
+      <section className="lp-section lp-contact">
+        <div className="lp-contact-inner">
+          <div className="lp-contact-info">
+            <h2 className="lp-section-title" style={{ textAlign: 'left' }}>Contact Us</h2>
+            <div className="lp-contact-detail">
+              <strong>Address</strong>
+              <p>138 4th Avenue Ste 568<br />Clock Garebens Core</p>
+            </div>
+            <div className="lp-contact-detail">
+              <strong>Email</strong>
+              <p>support@bouutmusic.com</p>
+            </div>
+          </div>
+          <form className="lp-contact-form lp-card" onSubmit={e => e.preventDefault()}>
+            <div className="lp-form-row">
+              <input type="text" placeholder="Name" className="lp-input" />
+              <input type="tel" placeholder="Phone" className="lp-input" />
+            </div>
+            <input type="email" placeholder="Email" className="lp-input" />
+            <textarea placeholder="Your message..." className="lp-input lp-textarea" rows={4} />
+            <button type="submit" className="lp-btn lp-btn-primary" style={{ width: '100%' }}>
+              Contact
             </button>
-          </article>
-        ))}
-      </motion.section>
-    </motion.div>
+          </form>
+        </div>
+      </section>
+
+      {/* ── 12. CTA BANNER ── */}
+      <section className="lp-section lp-cta-banner">
+        <div className="lp-cta-banner-inner">
+          <h2>JOIN THE 70K+ ARTIST NETWORK</h2>
+          <p>START YOUR JOURNEY</p>
+          <button
+            className="lp-btn lp-btn-white"
+            onClick={() => {
+              if (isAuthenticated) {
+                window.location.href = '/dashboard';
+              } else {
+                openAuthModal('register', '/dashboard');
+              }
+            }}
+          >
+            START YOUR JOURNEY <ArrowRight size={14} />
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }

@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import prisma from '../lib/prisma';
+import { normalizeAlbumMedia } from '../utils/media';
 
 const router = Router();
 
@@ -16,7 +17,7 @@ router.get('/', async (req, res: Response) => {
             }),
             prisma.album.count(),
         ]);
-        return res.json({ albums, total });
+        return res.json({ albums: albums.map(normalizeAlbumMedia), total });
     } catch {
         return res.status(500).json({ error: 'Failed to fetch albums' });
     }
@@ -33,7 +34,7 @@ router.get('/:id', async (req, res: Response) => {
             },
         });
         if (!album) return res.status(404).json({ error: 'Album not found' });
-        return res.json(album);
+        return res.json(normalizeAlbumMedia(album));
     } catch {
         return res.status(500).json({ error: 'Failed to fetch album' });
     }

@@ -2,14 +2,19 @@ import { Router, Response } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import multer from 'multer';
-import path from 'path';
 import fs from 'fs';
+import {
+    buildUploadUrl,
+    getDefaultSongArtUrl,
+    getUploadSubdir,
+    normalizeSongMedia,
+} from '../utils/media';
 
 const router = Router();
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const dir = path.join(__dirname, '../../uploads/songs');
+        const dir = getUploadSubdir('songs');
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         cb(null, dir);
     },
@@ -48,7 +53,12 @@ router.get('/', async (req, res: Response) => {
             prisma.song.count({ where }),
         ]);
 
-        return res.json({ songs, total, page: parseInt(page as string), pages: Math.ceil(total / parseInt(limit as string)) });
+        return res.json({
+            songs: songs.map(normalizeSongMedia),
+            total,
+            page: parseInt(page as string),
+            pages: Math.ceil(total / parseInt(limit as string)),
+        });
     } catch {
         return res.status(500).json({ error: 'Failed to fetch songs' });
     }
@@ -66,7 +76,7 @@ router.get('/:id', async (req, res: Response) => {
         // Increment play count
         await prisma.song.update({ where: { id: req.params.id }, data: { plays: { increment: 1 } } });
 
-        return res.json(song);
+        return res.json(normalizeSongMedia(song));
     } catch {
         return res.status(500).json({ error: 'Failed to fetch song' });
     }
@@ -80,8 +90,10 @@ router.post('/upload', authenticate, upload.fields([{ name: 'audio', maxCount: 1
 
         if (!files.audio?.[0]) return res.status(400).json({ error: 'Audio file required' });
 
-        const audioUrl = `/uploads/songs/${files.audio[0].filename}`;
-        const artUrl = files.artwork?.[0] ? `/uploads/songs/${files.artwork[0].filename}` : '/uploads/default-art.jpg';
+        const audioUrl = buildUploadUrl('songs', files.audio[0].filename);
+        const artUrl = files.artwork?.[0]
+            ? buildUploadUrl('songs', files.artwork[0].filename)
+            : getDefaultSongArtUrl();
 
         const song = await prisma.song.create({
             data: {
@@ -97,7 +109,7 @@ router.post('/upload', authenticate, upload.fields([{ name: 'audio', maxCount: 1
             },
         });
 
-        return res.status(201).json(song);
+        return res.status(201).json(normalizeSongMedia(song));
     } catch (err) {
         console.error(err);
         return res.status(500).json({ error: 'Upload failed' });
@@ -112,7 +124,7 @@ router.get('/my/songs', authenticate, async (req: AuthRequest, res: Response) =>
             orderBy: { createdAt: 'desc' },
             include: { album: { select: { title: true } } },
         });
-        return res.json(songs);
+        return res.json(songs.map(normalizeSongMedia));
     } catch {
         return res.status(500).json({ error: 'Failed to fetch songs' });
     }

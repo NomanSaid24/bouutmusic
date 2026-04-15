@@ -95,7 +95,7 @@ export function Footer() {
       <div className="site-footer-bottom">
         <div className="site-footer-brand">
           <div className="site-footer-logo-badge">
-            <img src="/logo-light.png" alt="Bouut Music" className="site-footer-logo" />
+            <img src="/logo-orange.png" alt="Bouut Music" className="site-footer-logo" />
           </div>
           <p>&copy; 2026 Bouut Music. All rights reserved.</p>
         </div>

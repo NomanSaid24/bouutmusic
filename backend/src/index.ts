@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
 import dotenv from 'dotenv';
+import fs from 'fs';
 dotenv.config();
 
 import authRoutes from './routes/auth';
@@ -21,12 +22,22 @@ import paymentRoutes from './routes/payments';
 import notificationRoutes from './routes/notifications';
 import postRoutes from './routes/posts';
 import messageRoutes from './routes/messages';
+import { getUploadRootDir } from './utils/media';
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
+const uploadRootDir = getUploadRootDir();
+
+function normalizeOrigin(origin: string) {
+    return origin
+        .trim()
+        .replace(/^['"]|['"]$/g, '')
+        .replace(/\/+$/, '');
+}
+
 const allowedOrigins = (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:3000,http://localhost:3001')
     .split(',')
-    .map(origin => origin.trim())
+    .map(origin => normalizeOrigin(origin))
     .filter(Boolean);
 
 function isPayuOrigin(origin: string) {
@@ -38,24 +49,41 @@ function isPayuOrigin(origin: string) {
     }
 }
 
-// Middleware
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-app.use(cors({
+const corsOptions: cors.CorsOptions = {
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin) || isPayuOrigin(origin)) {
+        if (!origin) {
             callback(null, true);
             return;
         }
 
+        const normalizedOrigin = normalizeOrigin(origin);
+
+        if (allowedOrigins.includes(normalizedOrigin) || isPayuOrigin(normalizedOrigin)) {
+            callback(null, true);
+            return;
+        }
+
+        console.warn(`Blocked CORS origin: ${origin}`);
         callback(new Error('CORS origin not allowed'));
     },
     credentials: true,
-}));
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 204,
+};
+
+// Middleware
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Static uploads
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+if (!fs.existsSync(uploadRootDir)) {
+    fs.mkdirSync(uploadRootDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadRootDir));
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok', platform: 'Bouut Music API' }));
@@ -85,7 +113,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 app.listen(PORT, () => {
-    console.log(`🎵 Bouut Music API running at http://localhost:${PORT}`);
+    console.log(`Bouut Music API running at http://localhost:${PORT}`);
 });
 
 export default app;

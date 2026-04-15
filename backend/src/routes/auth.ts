@@ -9,6 +9,7 @@ import {
     sanitizeArtistTypes,
     serializeArtistTypes,
 } from '../utils/profile';
+import { normalizeUserMedia } from '../utils/media';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
@@ -65,29 +66,34 @@ type AuthUserRecord = {
 };
 
 const buildAuthUser = (user: AuthUserRecord) => ({
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    slug: user.slug,
-    avatar: user.avatar,
-    banner: user.banner,
-    bio: user.bio,
-    artistTypes: sanitizeArtistTypes(user.artistTypes),
-    genre: user.genre,
-    country: user.country,
-    state: user.state,
-    city: user.city,
-    website: user.website,
-    instagram: user.instagram,
-    facebook: user.facebook,
-    twitter: user.twitter,
-    youtube: user.youtube,
-    spotify: user.spotify,
-    isPro: user.isPro,
-    onboardingCompleted: user.onboardingCompleted,
-    profileProgress: user.profileProgress,
-    createdAt: user.createdAt,
+    ...(() => {
+        const normalizedUser = normalizeUserMedia(user);
+        return {
+            id: normalizedUser.id,
+            name: normalizedUser.name,
+            email: normalizedUser.email,
+            role: normalizedUser.role,
+            slug: normalizedUser.slug,
+            avatar: normalizedUser.avatar,
+            banner: normalizedUser.banner,
+            bio: normalizedUser.bio,
+            artistTypes: sanitizeArtistTypes(normalizedUser.artistTypes),
+            genre: normalizedUser.genre,
+            country: normalizedUser.country,
+            state: normalizedUser.state,
+            city: normalizedUser.city,
+            website: normalizedUser.website,
+            instagram: normalizedUser.instagram,
+            facebook: normalizedUser.facebook,
+            twitter: normalizedUser.twitter,
+            youtube: normalizedUser.youtube,
+            spotify: normalizedUser.spotify,
+            isPro: normalizedUser.isPro,
+            onboardingCompleted: normalizedUser.onboardingCompleted,
+            profileProgress: normalizedUser.profileProgress,
+            createdAt: normalizedUser.createdAt,
+        };
+    })(),
 });
 
 function normalizeOptionalString(value: unknown) {
