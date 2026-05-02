@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Bell, Crown, MessageCircle, Search, User, LogOut, Settings, Shield, ChevronDown } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Bell, MessageCircle, Search, User, LogOut, Settings, Shield, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
 
 function getInitials(name: string) {
@@ -15,6 +16,7 @@ function getInitials(name: string) {
 }
 
 export function Sidebar({ compact = false }: { compact?: boolean }) {
+    const router = useRouter();
     const {
         user,
         isAuthenticated,
@@ -102,7 +104,7 @@ export function Sidebar({ compact = false }: { compact?: boolean }) {
             <div className="sb-actions">
                 {isAuthenticated && (
                     <>
-                        <button className="sb-icon-btn" title="Messages">
+                        <button className="sb-icon-btn" title="Messages" onClick={() => router.push('/dashboard/messages')}>
                             <MessageCircle size={22} />
                         </button>
                         <button className="sb-icon-btn" title="Notifications">

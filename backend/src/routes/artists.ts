@@ -6,6 +6,59 @@ import { normalizeAlbumMedia, normalizeSongMedia, normalizeUserMedia } from '../
 
 const router = Router();
 
+const artistCardSelect = {
+    id: true,
+    slug: true,
+    name: true,
+    avatar: true,
+    banner: true,
+    genre: true,
+    city: true,
+    country: true,
+    state: true,
+    bio: true,
+    artistTypes: true,
+    isPro: true,
+    roasterOrder: true,
+    roasterFeaturedAt: true,
+    createdAt: true,
+} as const;
+
+function formatArtistCard(artist: any) {
+    return {
+        ...normalizeUserMedia(artist),
+        artistTypes: sanitizeArtistTypes(artist.artistTypes),
+    };
+}
+
+async function sendRoasterArtists(res: Response) {
+    try {
+        const artists = await prisma.user.findMany({
+            where: {
+                role: 'ARTIST',
+                roasterFeatured: true,
+            },
+            select: artistCardSelect,
+            orderBy: [
+                { roasterOrder: 'asc' },
+                { roasterFeaturedAt: 'desc' },
+                { createdAt: 'desc' },
+            ],
+        });
+
+        return res.json({ artists: artists.map(formatArtistCard) });
+    } catch (error) {
+        console.error('Failed to fetch roaster artists:', error);
+        return res.status(500).json({ error: 'Failed to fetch roaster artists' });
+    }
+}
+
+// GET /api/artists/roaster
+router.get('/roaster', async (_req, res: Response) => sendRoasterArtists(res));
+
+// GET /api/artists/roster
+router.get('/roster', async (_req, res: Response) => sendRoasterArtists(res));
+
 // GET /api/artists
 router.get('/', async (req, res: Response) => {
     try {
@@ -19,16 +72,13 @@ router.get('/', async (req, res: Response) => {
                 where,
                 skip,
                 take: parseInt(limit as string),
-                select: { id: true, slug: true, name: true, avatar: true, genre: true, city: true, country: true, state: true, bio: true, artistTypes: true, isPro: true, createdAt: true },
+                select: artistCardSelect,
                 orderBy: { createdAt: 'desc' },
             }),
             prisma.user.count({ where }),
         ]);
         return res.json({
-            artists: artists.map(artist => ({
-                ...normalizeUserMedia(artist),
-                artistTypes: sanitizeArtistTypes(artist.artistTypes),
-            })),
+            artists: artists.map(formatArtistCard),
             total,
         });
     } catch {

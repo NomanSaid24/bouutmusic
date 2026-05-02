@@ -75,6 +75,27 @@ function getStringValue(value: unknown) {
     return typeof value === 'string' ? value.trim() : '';
 }
 
+function getServiceDisplayName(config: ServiceConfigResponse | null) {
+    if (!config) {
+        return 'Promo Service';
+    }
+
+    const formData = config.formData || {};
+    const plan = formData.plan;
+
+    if (formData.serviceType === 'growth-engine' && plan && typeof plan === 'object' && 'title' in plan) {
+        const title = getStringValue((plan as { title?: unknown }).title);
+        return title ? `Growth Engine ${title} Monthly` : 'Growth Engine Monthly';
+    }
+
+    if (formData.serviceType === 'release-music' && plan && typeof plan === 'object' && 'title' in plan) {
+        const title = getStringValue((plan as { title?: unknown }).title);
+        return title || 'Release My Music';
+    }
+
+    return config.service.name || 'Promo Service';
+}
+
 export function PromoServiceCheckoutPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -255,6 +276,7 @@ export function PromoServiceCheckoutPage() {
 
     const amount = config?.paymentAmount || 0;
     const currency = config?.paymentCurrency || 'INR';
+    const productName = getServiceDisplayName(config);
 
     return (
         <div className={styles.page}>
@@ -378,7 +400,7 @@ export function PromoServiceCheckoutPage() {
 
                             <div className={styles.summaryLine}>
                                 <div>
-                                    <p className={styles.productName}>{config?.service.name || 'Promo Service'}</p>
+                                    <p className={styles.productName}>{productName}</p>
                                     <p className={styles.productMeta}>
                                         {config?.status === 'PENDING_PAYMENT'
                                             ? 'Form submitted, awaiting payment completion'

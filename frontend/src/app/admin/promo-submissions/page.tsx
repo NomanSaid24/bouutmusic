@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Search, XCircle } from 'lucide-react';
+import { CheckCircle2, RefreshCw, Search, XCircle } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -44,15 +44,29 @@ function isReviewedStatus(status: string) {
 }
 
 function isReviewable(item: AdminSubmission) {
-    if (item.status !== 'PENDING') {
+    if (isReviewedStatus(item.status)) {
         return false;
     }
 
     if (!item.paymentRequired) {
-        return true;
+        return item.status === 'PENDING';
     }
 
-    return item.paymentStatus === 'PAID' || item.payment?.status === 'COMPLETED';
+    return (
+        item.paymentStatus === 'PAID' ||
+        item.payment?.status === 'COMPLETED'
+    );
+}
+
+function canSyncPayment(item: AdminSubmission) {
+    return (
+        item.paymentRequired &&
+        !isReviewedStatus(item.status) &&
+        item.payment?.gateway === 'payu' &&
+        !!item.payment.payuTxnId &&
+        item.payment.status !== 'COMPLETED' &&
+        item.payment.status !== 'FAILED'
+    );
 }
 
 function formatAmount(amount: number, currency = 'INR') {
@@ -61,19 +75,6 @@ function formatAmount(amount: number, currency = 'INR') {
         currency,
         maximumFractionDigits: 0,
     }).format(amount);
-}
-
-function formatFormDataPreview(formData: Record<string, unknown> | null) {
-    if (!formData) {
-        return 'No form data captured';
-    }
-
-    const entries = Object.entries(formData)
-        .filter(([, value]) => value !== null && value !== undefined && value !== '')
-        .slice(0, 4)
-        .map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`);
-
-    return entries.length ? entries.join(' • ') : 'No form data captured';
 }
 
 function formatPaymentState(item: AdminSubmission) {
@@ -101,11 +102,157 @@ function formatPaymentState(item: AdminSubmission) {
         return 'FAILED';
     }
 
+    if (item.status === 'PENDING_PAYMENT' && item.payment?.payuTxnId) {
+        return 'CHECKING PAYU';
+    }
+
     if (item.status === 'PENDING_PAYMENT') {
-        return 'WAITING FOR PAYMENT';
+        return 'WAITING FOR CHECKOUT';
     }
 
     return item.paymentStatus || item.payment?.status || 'PENDING';
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : null;
+}
+
+function humanize(value: string) {
+    return value
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/[-_]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/\b\w/g, character => character.toUpperCase());
+}
+
+function stringifyPreviewValue(value: unknown) {
+    if (value === null || value === undefined || value === '') {
+        return '';
+    }
+
+    if (typeof value === 'string') {
+        return value.trim();
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+
+    const record = asRecord(value);
+    if (record) {
+        return stringifyPreviewValue(record.title || record.name || record.label || record.id);
+    }
+
+    return '';
+}
+
+function truncatePreview(value: string, maxLength = 92) {
+    if (value.length <= maxLength) {
+        return value;
+    }
+
+    return `${value.slice(0, maxLength - 3)}...`;
+}
+
+function readFirst(formData: Record<string, unknown>, keys: string[]) {
+    for (const key of keys) {
+        const value = stringifyPreviewValue(formData[key]);
+        if (value) {
+            return value;
+        }
+    }
+
+    return '';
+}
+
+function getPlanPreview(formData: Record<string, unknown>) {
+    const pricingMeta = asRecord(formData.pricingMeta);
+    const pricingPlan = pricingMeta ? asRecord(pricingMeta.plan) : null;
+    const selectedPlan = asRecord(formData.selectedPlan);
+    const planObject = asRecord(formData.plan);
+
+    const planTitle =
+        stringifyPreviewValue(planObject?.title) ||
+        stringifyPreviewValue(selectedPlan?.title) ||
+        stringifyPreviewValue(pricingPlan?.title) ||
+        stringifyPreviewValue(formData.planId) ||
+        stringifyPreviewValue(formData.plan);
+
+    return planTitle ? humanize(planTitle) : '';
+}
+
+function getArtistPreview(formData: Record<string, unknown>) {
+    const combinedName = [
+        stringifyPreviewValue(formData.artistFirstName),
+        stringifyPreviewValue(formData.artistLastName),
+    ].filter(Boolean).join(' ');
+
+    return (
+        readFirst(formData, ['artistName', 'stageName', 'mainArtist', 'bandName', 'name']) ||
+        combinedName
+    );
+}
+
+function getSelectedServicesPreview(formData: Record<string, unknown>) {
+    const selectedServices = Array.isArray(formData.selectedServices) ? formData.selectedServices : [];
+    const values = selectedServices
+        .map(item => humanize(stringifyPreviewValue(item)))
+        .filter(Boolean);
+
+    return values.length ? truncatePreview(values.slice(0, 4).join(', '), 100) : '';
+}
+
+function getFormPreviewRows(item: AdminSubmission) {
+    const formData = item.formData || {};
+    const rows: Array<{ label: string; value: string }> = [];
+    const addRow = (label: string, value: string) => {
+        const cleanValue = truncatePreview(value.trim());
+        if (cleanValue && !rows.some(row => row.label === label && row.value === cleanValue)) {
+            rows.push({ label, value: cleanValue });
+        }
+    };
+
+    addRow('Plan', getPlanPreview(formData));
+    addRow('Artist', getArtistPreview(formData));
+    addRow('Track', readFirst(formData, ['trackTitle', 'releaseTitle', 'songTitle', 'title', 'trackInformation']));
+    addRow('Link', readFirst(formData, ['linkToSong', 'songLink', 'spotifyUrl', 'downloadLink', 'youtube', 'youtubeHandle']));
+    addRow('Contact', readFirst(formData, ['email', 'mobile', 'phone', 'instagramHandle', 'instagram']));
+    addRow('Playlist', readFirst(formData, ['playlist']));
+    addRow('Genre', readFirst(formData, ['genre', 'language', 'trackLanguage']));
+    addRow('Add-ons', getSelectedServicesPreview(formData));
+    addRow('Coupon', readFirst(formData, ['couponCode']));
+
+    if (!rows.length) {
+        addRow('Service', item.service?.name || 'Service submission');
+    }
+
+    return rows.slice(0, 6);
+}
+
+function renderFormPreview(item: AdminSubmission) {
+    const rows = getFormPreviewRows(item);
+
+    return (
+        <div style={{ display: 'grid', gap: 7 }}>
+            {rows.map(row => (
+                <div key={`${row.label}-${row.value}`} style={{ display: 'grid', gridTemplateColumns: '74px minmax(0, 1fr)', gap: 10, alignItems: 'start' }}>
+                    <span style={{ color: '#9ca3af', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>{row.label}</span>
+                    <span style={{ color: '#374151', fontSize: 13, lineHeight: 1.45, overflowWrap: 'anywhere' }}>{row.value}</span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function getApproveLabel(item: AdminSubmission) {
+    return item.paymentRequired ? 'Approve Payment' : 'Approve';
+}
+
+function getRejectLabel(item: AdminSubmission) {
+    return item.paymentRequired ? 'Reject Payment' : 'Reject';
 }
 
 export default function AdminPromoSubmissionsPage() {
@@ -115,6 +262,7 @@ export default function AdminPromoSubmissionsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
+    const [syncingId, setSyncingId] = useState<string | null>(null);
     const [activeStatus, setActiveStatus] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
 
     useEffect(() => {
@@ -171,9 +319,39 @@ export default function AdminPromoSubmissionsPage() {
         };
     }, [activeStatus, query, token]);
 
-    const pendingCount = useMemo(() => submissions.filter(item => item.status === 'PENDING').length, [submissions]);
+    const pendingCount = useMemo(() => submissions.filter(isReviewable).length, [submissions]);
 
-    async function handleReview(id: string, status: 'APPROVED' | 'REJECTED') {
+    async function handleSyncPayment(id: string) {
+        if (!token) {
+            return;
+        }
+
+        try {
+            setSyncingId(id);
+            setActionError(null);
+
+            const response = await fetch(`${API_URL}/api/admin/service-submissions/${id}/sync-payment`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            const payload = await response.json().catch(() => null) as AdminSubmission | { error?: string } | null;
+
+            if (!response.ok || !payload || !('id' in payload)) {
+                throw new Error(payload && typeof payload === 'object' && 'error' in payload && payload.error ? payload.error : 'Failed to refresh PayU payment');
+            }
+
+            setSubmissions(previous => previous.map(item => item.id === payload.id ? payload : item));
+        } catch (syncError) {
+            setActionError(syncError instanceof Error ? syncError.message : 'Failed to refresh PayU payment');
+        } finally {
+            setSyncingId(null);
+        }
+    }
+
+    async function handleReview(item: AdminSubmission, status: 'APPROVED' | 'REJECTED') {
         if (!token) {
             return;
         }
@@ -186,7 +364,7 @@ export default function AdminPromoSubmissionsPage() {
         try {
             setActionError(null);
 
-            const response = await fetch(`${API_URL}/api/admin/service-submissions/${id}/review`, {
+            const response = await fetch(`${API_URL}/api/admin/service-submissions/${item.id}/review`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -216,7 +394,7 @@ export default function AdminPromoSubmissionsPage() {
                 <div>
                     <h1 style={{ fontSize: 24, fontWeight: 800, color: '#111827' }}>Promo Submissions</h1>
                     <div style={{ color: '#6b7280', fontSize: 14, marginTop: 4 }}>
-                        Review all paid and free promo tool submissions before approval or rejection.
+                        Review all paid and free service submissions before approval or rejection.
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -239,7 +417,7 @@ export default function AdminPromoSubmissionsPage() {
                     <div style={{ fontSize: 32, fontWeight: 800, color: '#111827' }}>{submissions.length}</div>
                 </div>
                 <div className="card" style={{ padding: 24 }}>
-                    <div style={{ color: '#6b7280', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>PENDING REVIEW</div>
+                    <div style={{ color: '#6b7280', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>READY FOR REVIEW</div>
                     <div style={{ fontSize: 32, fontWeight: 800, color: '#111827' }}>{pendingCount}</div>
                 </div>
                 <div className="card" style={{ padding: 24 }}>
@@ -275,7 +453,7 @@ export default function AdminPromoSubmissionsPage() {
                             <tr>
                                 <th>Service</th>
                                 <th>User</th>
-                                <th>Form Preview</th>
+                                <th>Important Details</th>
                                 <th>Payment</th>
                                 <th>Status</th>
                                 <th style={{ textAlign: 'right' }}>Actions</th>
@@ -300,8 +478,8 @@ export default function AdminPromoSubmissionsPage() {
                                         <div style={{ fontWeight: 600 }}>{item.user.name}</div>
                                         <div style={{ color: '#6b7280', fontSize: 12 }}>{item.user.email}</div>
                                     </td>
-                                    <td style={{ maxWidth: 360, color: '#6b7280', fontSize: 13 }}>
-                                        {formatFormDataPreview(item.formData)}
+                                    <td style={{ minWidth: 310, maxWidth: 430, color: '#6b7280', fontSize: 13 }}>
+                                        {renderFormPreview(item)}
                                     </td>
                                     <td>
                                         <div style={{ fontWeight: 600 }}>
@@ -311,7 +489,11 @@ export default function AdminPromoSubmissionsPage() {
                                         </div>
                                         <div style={{ color: '#6b7280', fontSize: 12 }}>
                                             {formatPaymentState(item)}
-                                            {item.payment?.payuMihpayId ? ` • ${item.payment.payuMihpayId}` : ''}
+                                            {item.payment?.payuMihpayId
+                                                ? ` - ${item.payment.payuMihpayId}`
+                                                : item.payment?.payuTxnId
+                                                    ? ` - ${item.payment.payuTxnId}`
+                                                    : ''}
                                         </div>
                                     </td>
                                     <td>
@@ -334,28 +516,41 @@ export default function AdminPromoSubmissionsPage() {
                                                 Review Complete
                                             </span>
                                         ) : !isReviewable(item) ? (
-                                            <span style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600 }}>
-                                                Waiting for payment
-                                            </span>
+                                            canSyncPayment(item) ? (
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline btn-sm"
+                                                    style={{ padding: '6px 10px', height: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                                                    disabled={syncingId === item.id}
+                                                    onClick={() => void handleSyncPayment(item.id)}
+                                                >
+                                                    <RefreshCw size={14} />
+                                                    {syncingId === item.id ? 'Checking' : 'Refresh PayU'}
+                                                </button>
+                                            ) : (
+                                                <span style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600 }}>
+                                                    Waiting for checkout
+                                                </span>
+                                            )
                                         ) : (
                                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                                                 <button
                                                     type="button"
                                                     className="btn btn-outline btn-sm"
                                                     style={{ padding: '6px 10px', height: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                                                    onClick={() => void handleReview(item.id, 'APPROVED')}
+                                                    onClick={() => void handleReview(item, 'APPROVED')}
                                                 >
                                                     <CheckCircle2 size={14} />
-                                                    Approve
+                                                    {getApproveLabel(item)}
                                                 </button>
                                                 <button
                                                     type="button"
                                                     className="btn btn-outline btn-sm"
                                                     style={{ padding: '6px 10px', height: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, color: '#dc2626', borderColor: '#fecaca' }}
-                                                    onClick={() => void handleReview(item.id, 'REJECTED')}
+                                                    onClick={() => void handleReview(item, 'REJECTED')}
                                                 >
                                                     <XCircle size={14} />
-                                                    Reject
+                                                    {getRejectLabel(item)}
                                                 </button>
                                             </div>
                                         )}

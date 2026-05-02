@@ -44,7 +44,7 @@ const memberNav: { section: string; items: NavItem[] }[] = [
         section: 'WORKSTATION',
         items: [
             { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} />, requiresAuth: true },
-            { label: 'e-Press Kit', href: '/dashboard/epk', icon: <User size={18} />, requiresAuth: true },
+            { label: 'E-Profile', href: '/dashboard/epk', icon: <User size={18} />, requiresAuth: true },
         ],
     },
     {
@@ -84,7 +84,7 @@ const memberNav: { section: string; items: NavItem[] }[] = [
                 icon: <Compass size={18} />,
                 children: [
                     { label: 'Playlists', href: '/playlists', icon: <List size={14} /> },
-                    { label: 'Artists', href: '/artists', icon: <Headphones size={14} /> },
+                    { label: 'Roaster', href: '/roaster', icon: <Headphones size={14} /> },
                 ],
             },
         ],
@@ -119,7 +119,7 @@ const publicNav: { section: string; items: NavItem[] }[] = [
                 icon: <Compass size={18} />,
                 children: [
                     { label: 'Playlists', href: '/playlists', icon: <List size={14} /> },
-                    { label: 'Artists', href: '/artists', icon: <Headphones size={14} /> },
+                    { label: 'Roaster', href: '/roaster', icon: <Headphones size={14} /> },
                 ],
             },
         ],

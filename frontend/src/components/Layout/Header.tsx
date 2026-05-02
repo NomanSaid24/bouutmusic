@@ -2,9 +2,10 @@
 
 import { FormEvent, useMemo, useRef, useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { ChevronDown, LogOut, Settings, Shield, User, X, Menu } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Bell, ChevronDown, LogOut, MessageCircle, Settings, Shield, User, X } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { useNotifications } from '@/components/providers/NotificationProvider';
 import { Sidebar } from './Sidebar';
 
 function getInitials(name: string) {
@@ -14,6 +15,21 @@ function getInitials(name: string) {
         .slice(0, 2)
         .map(part => part[0]?.toUpperCase() ?? '')
         .join('') || 'BM';
+}
+
+function formatNotificationTime(value: string) {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return 'Recently';
+    }
+
+    return date.toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
 }
 
 interface DropdownItem {
@@ -31,7 +47,7 @@ interface NavEntry {
 
 const leftNav: NavEntry[] = [
     { label: 'Dashboard', href: '/dashboard', requiresAuth: true },
-    { label: 'E-Press Kit', href: '/dashboard/epk', requiresAuth: true },
+    { label: 'E-Profile', href: '/dashboard/epk', requiresAuth: true },
     {
         label: 'Release',
         requiresAuth: true,
@@ -53,24 +69,32 @@ const rightNavAuth: NavEntry[] = [
         ],
     },
     { label: 'Promo Tools', href: '/dashboard/promo-tools', requiresAuth: false },
-    { label: 'Blogs', href: '/blogs', requiresAuth: false },
     {
         label: 'Discover',
         children: [
+            { label: 'Blogs', href: '/blogs' },
             { label: 'Playlists', href: '/playlists' },
-            { label: 'Artists', href: '/artists' },
+            { label: 'Roaster', href: '/roaster' },
         ],
     },
 ];
 
 const rightNavGuest: NavEntry[] = [
+    {
+        label: 'Finance',
+        requiresAuth: true,
+        children: [
+            { label: 'Revenue Report', href: '/dashboard/finance' },
+            { label: 'Royalty Splits', href: '/dashboard/finance' },
+        ],
+    },
     { label: 'Promo Tools', href: '/dashboard/promo-tools', requiresAuth: false },
-    { label: 'Blogs', href: '/blogs', requiresAuth: false },
     {
         label: 'Discover',
         children: [
+            { label: 'Blogs', href: '/blogs' },
             { label: 'Playlists', href: '/playlists' },
-            { label: 'Artists', href: '/artists' },
+            { label: 'Roaster', href: '/roaster' },
         ],
     },
 ];
@@ -213,6 +237,7 @@ function MobileNavLink({ entry, onClose }: { entry: NavEntry; onClose: () => voi
 }
 
 export function Header() {
+    const router = useRouter();
     const {
         user,
         isAuthenticated,
@@ -227,10 +252,20 @@ export function Header() {
         register,
         logout,
     } = useAuth();
+    const {
+        notifications,
+        unreadCount,
+        markNotificationRead,
+        markAllNotificationsRead,
+    } = useNotifications();
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [accountOpen, setAccountOpen] = useState(false);
+    const [notificationsOpen, setNotificationsOpen] = useState(false);
+    const accountRef = useRef<HTMLDivElement>(null);
+    const notificationsRef = useRef<HTMLDivElement>(null);
 
     const profileLinks = useMemo(() => {
         if (!user) return [];
@@ -243,6 +278,30 @@ export function Header() {
         }
         return links;
     }, [isAdmin, user]);
+
+    const desktopNav = useMemo(
+        () => [...leftNav, ...(isAuthenticated ? rightNavAuth : rightNavGuest)],
+        [isAuthenticated]
+    );
+
+    const accountLabel = user?.name.split(' ')[0] || 'Login';
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            const target = event.target as Node;
+
+            if (accountRef.current && !accountRef.current.contains(target)) {
+                setAccountOpen(false);
+            }
+
+            if (notificationsRef.current && !notificationsRef.current.contains(target)) {
+                setNotificationsOpen(false);
+            }
+        }
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -261,7 +320,6 @@ export function Header() {
         <>
             <header className="topbar">
                 <div className="topbar-inner">
-                    {/* Mobile hamburger */}
                     <button
                         className={`mobile-menu-btn ${mobileOpen ? 'is-open' : ''}`}
                         onClick={() => setMobileOpen(o => !o)}
@@ -272,14 +330,6 @@ export function Header() {
                         <span />
                     </button>
 
-                    {/* Left navigation */}
-                    <nav className="menu menu-left">
-                        {leftNav.map(entry => (
-                            <NavLink key={entry.label} entry={entry} />
-                        ))}
-                    </nav>
-
-                    {/* Center brand with arch */}
                     <Link href="/" className="brand" aria-label="Bouut Music Home">
                         <div className="brand-mark">
                             <img
@@ -290,12 +340,139 @@ export function Header() {
                         </div>
                     </Link>
 
-                    {/* Right navigation */}
-                    <nav className="menu menu-right">
-                        {(isAuthenticated ? rightNavAuth : rightNavGuest).map(entry => (
+                    <nav className="menu menu-main" aria-label="Primary navigation">
+                        {desktopNav.map(entry => (
                             <NavLink key={entry.label} entry={entry} />
                         ))}
                     </nav>
+
+                    <div className="topbar-right">
+                        <div className="header-user-controls">
+                            <button
+                                type="button"
+                                className="header-icon-btn"
+                                title="Messages"
+                                onClick={() => {
+                                    if (!isAuthenticated) {
+                                        openAuthModal('login', '/dashboard/messages');
+                                        return;
+                                    }
+                                    router.push('/dashboard/messages');
+                                }}
+                            >
+                                <MessageCircle size={18} />
+                            </button>
+
+                            <div className="header-popover" ref={notificationsRef}>
+                                <button
+                                    type="button"
+                                    className="header-icon-btn"
+                                    title="Notifications"
+                                    onClick={() => {
+                                        if (!isAuthenticated) {
+                                            openAuthModal('login');
+                                            return;
+                                        }
+                                        setNotificationsOpen(current => !current);
+                                        setAccountOpen(false);
+                                    }}
+                                    >
+                                        <Bell size={18} />
+                                    {isAuthenticated && unreadCount > 0 && <span className="header-icon-dot" />}
+                                    </button>
+
+                                    {notificationsOpen && (
+                                        <div className="header-floating-panel header-notifications-panel">
+                                        <div className="header-panel-title">Notifications</div>
+                                        {notifications.length ? (
+                                            <>
+                                                <div className="header-notification-list">
+                                                    {notifications.slice(0, 6).map(notification => (
+                                                        <Link
+                                                            key={notification.id}
+                                                            href={notification.link || '/dashboard/messages'}
+                                                            className={`header-notification-item ${notification.read ? '' : 'is-unread'}`}
+                                                            onClick={() => {
+                                                                setNotificationsOpen(false);
+                                                                void markNotificationRead(notification.id);
+                                                            }}
+                                                        >
+                                                            <strong>{notification.title}</strong>
+                                                            <span>{notification.message}</span>
+                                                            <em>{formatNotificationTime(notification.createdAt)}</em>
+                                                        </Link>
+                                                    ))}
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    className="header-panel-action"
+                                                    onClick={() => void markAllNotificationsRead()}
+                                                >
+                                                    Mark all as read
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <p className="header-panel-copy">No new notifications yet.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="header-popover" ref={accountRef}>
+                                <button
+                                    type="button"
+                                    className="header-profile-btn"
+                                    onClick={() => {
+                                        if (!isAuthenticated) {
+                                            openAuthModal('login');
+                                            return;
+                                        }
+                                        setAccountOpen(current => !current);
+                                        setNotificationsOpen(false);
+                                    }}
+                                >
+                                    <span className={`header-profile-avatar ${isAuthenticated ? '' : 'is-guest'}`}>
+                                        {user ? getInitials(user.name) : <User size={16} />}
+                                    </span>
+                                    <span className="header-profile-label">{accountLabel}</span>
+                                    <ChevronDown size={14} className={`header-profile-chevron ${accountOpen ? 'is-open' : ''}`} />
+                                </button>
+
+                                {accountOpen && user && (
+                                    <div className="header-floating-panel header-account-panel">
+                                        <div className="header-account-summary">
+                                            <span className="header-account-name">{user.name}</span>
+                                            <span className="header-account-email">{user.email}</span>
+                                        </div>
+
+                                        {profileLinks.map(link => (
+                                            <Link
+                                                key={link.href}
+                                                href={link.href}
+                                                className="header-account-entry"
+                                                onClick={() => setAccountOpen(false)}
+                                            >
+                                                {link.icon}
+                                                <span>{link.label}</span>
+                                            </Link>
+                                        ))}
+
+                                        <button
+                                            type="button"
+                                            className="header-account-entry header-account-logout"
+                                            onClick={() => {
+                                                setAccountOpen(false);
+                                                logout();
+                                            }}
+                                        >
+                                            <LogOut size={14} />
+                                            <span>Sign Out</span>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </header>
 

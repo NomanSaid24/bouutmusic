@@ -282,7 +282,7 @@ export function PublicEpkPage({ identifier }: { identifier: string }) {
                             )}
                             {isOwner && (
                                 <Link href="/dashboard/epk" className="btn btn-outline w-full" style={{ justifyContent: 'center' }}>
-                                    Edit EPK
+                                    Edit E-Profile
                                 </Link>
                             )}
                         </section>

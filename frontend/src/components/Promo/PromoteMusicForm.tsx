@@ -3,8 +3,17 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/providers/AuthProvider';
 
 interface PromoteMusicFormProps {
+    initialPlan?: string | null;
     onSubmit: (data: any) => void;
     onCancel: () => void;
+}
+
+interface PromotionPlanOption {
+    id: string;
+    title: string;
+    price: number;
+    description: string;
+    includes: string[];
 }
 
 interface PromotionServiceOption {
@@ -13,6 +22,38 @@ interface PromotionServiceOption {
     price: number;
     description: string;
 }
+
+const PROMOTION_PLANS: PromotionPlanOption[] = [
+    {
+        id: 'starter-boost',
+        title: 'Starter Boost',
+        price: 299,
+        description: 'Perfect for a quick campaign bump.',
+        includes: ['1 Story', '1 Feed Post or Reel'],
+    },
+    {
+        id: 'growth-push',
+        title: 'Growth Push',
+        price: 899,
+        description: 'For serious artists building release momentum.',
+        includes: ['1 Reel', '1 Feed Post', '3-5 Stories', 'Friday Spotlight Access'],
+    },
+    {
+        id: 'viral-launch',
+        title: 'Viral Launch',
+        price: 2499,
+        description: 'Maximum exposure for your next release.',
+        includes: [
+            'Pre-release hype campaign',
+            '2-3 Reels',
+            '8-10 Story sequence',
+            'Friday Spotlight Access',
+            'Highlight placement',
+            'Weekly top picks access',
+            'Artist Introduction',
+        ],
+    },
+];
 
 const PROMOTION_SERVICES: PromotionServiceOption[] = [
     {
@@ -75,7 +116,11 @@ function formatCurrency(amount: number) {
     return `INR ${amount.toFixed(2)}`;
 }
 
-export function PromoteMusicForm({ onSubmit, onCancel }: PromoteMusicFormProps) {
+function isValidPlan(planId: string | null | undefined) {
+    return !!planId && PROMOTION_PLANS.some(plan => plan.id === planId);
+}
+
+export function PromoteMusicForm({ initialPlan, onSubmit, onCancel }: PromoteMusicFormProps) {
     const { user } = useAuth();
     const [formData, setFormData] = useState({
         linkToSong: '',
@@ -86,6 +131,7 @@ export function PromoteMusicForm({ onSubmit, onCancel }: PromoteMusicFormProps) 
         mobile: '',
         trackInformation: '',
     });
+    const [selectedPlan, setSelectedPlan] = useState(() => isValidPlan(initialPlan) ? initialPlan! : '');
     const [selectedServices, setSelectedServices] = useState<string[]>([]);
     const [couponInput, setCouponInput] = useState('');
     const [appliedCoupon, setAppliedCoupon] = useState('');
@@ -107,12 +153,22 @@ export function PromoteMusicForm({ onSubmit, onCancel }: PromoteMusicFormProps) 
         }));
     }, [user?.email, user?.instagram, user?.name]);
 
+    useEffect(() => {
+        if (isValidPlan(initialPlan)) {
+            setSelectedPlan(initialPlan!);
+            setSelectionError('');
+        }
+    }, [initialPlan]);
+
+    const selectedPlanDetails = PROMOTION_PLANS.find(plan => plan.id === selectedPlan) || null;
     const selectedServiceDetails = PROMOTION_SERVICES.filter(service => selectedServices.includes(service.id));
-    const subtotal = selectedServiceDetails.reduce((sum, service) => sum + service.price, 0);
+    const planSubtotal = selectedPlanDetails?.price || 0;
+    const addOnsSubtotal = selectedServiceDetails.reduce((sum, service) => sum + service.price, 0);
+    const subtotal = planSubtotal + addOnsSubtotal;
 
     let discountAmount = 0;
-    if (appliedCoupon === 'BOUUTMUSIC10' && selectedServices.includes('bundle-pack')) {
-        discountAmount = 29.8;
+    if (appliedCoupon === 'BOUUTMUSIC10') {
+        discountAmount = subtotal * 0.10;
     }
     const total = Math.max(0, subtotal - discountAmount);
 
@@ -130,6 +186,11 @@ export function PromoteMusicForm({ onSubmit, onCancel }: PromoteMusicFormProps) 
         setSelectionError('');
     };
 
+    const handleSelectPlan = (planId: string) => {
+        setSelectedPlan(current => current === planId ? '' : planId);
+        setSelectionError('');
+    };
+
     const handleApplyCoupon = () => {
         const code = couponInput.trim().toUpperCase();
 
@@ -141,15 +202,15 @@ export function PromoteMusicForm({ onSubmit, onCancel }: PromoteMusicFormProps) 
         }
 
         if (code === 'BOUUTMUSIC10') {
-            if (!selectedServices.includes('bundle-pack')) {
+            if (subtotal <= 0) {
                 setAppliedCoupon('');
-                setCouponMessage('BOUUTMUSIC10 works when the Bundle Pack is selected.');
+                setCouponMessage('Choose a promotion plan or add-on before applying this coupon.');
                 setCouponState('error');
                 return;
             }
 
             setAppliedCoupon(code);
-            setCouponMessage('Coupon applied. 10% off on Bundle Pack.');
+            setCouponMessage('Coupon applied. 10% off your promotion order.');
             setCouponState('success');
             return;
         }
@@ -169,15 +230,19 @@ export function PromoteMusicForm({ onSubmit, onCancel }: PromoteMusicFormProps) 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (selectedServices.length === 0) {
-            setSelectionError('Please choose at least one service.');
+        if (!selectedPlan && selectedServices.length === 0) {
+            setSelectionError('Please choose a promotion plan or at least one add-on.');
             return;
         }
 
         onSubmit({
             ...formData,
+            plan: selectedPlan,
+            selectedPlan: selectedPlanDetails,
             selectedServices: selectedServiceDetails,
             couponCode: appliedCoupon || couponInput.trim().toUpperCase(),
+            planSubtotal,
+            addOnsSubtotal,
             subtotal,
             discountAmount,
             total,
@@ -193,6 +258,37 @@ export function PromoteMusicForm({ onSubmit, onCancel }: PromoteMusicFormProps) 
             </div>
 
             <div className="bouut-form-divider" />
+
+            <div className="bouut-form-group full-width" style={{ marginBottom: '24px' }}>
+                <label>Selected promotion plan</label>
+                <div className="bouut-plan-grid">
+                    {PROMOTION_PLANS.map(plan => {
+                        const selected = selectedPlan === plan.id;
+
+                        return (
+                            <button
+                                key={plan.id}
+                                type="button"
+                                className={`bouut-plan-card ${selected ? 'selected' : ''}`}
+                                onClick={() => handleSelectPlan(plan.id)}
+                            >
+                                <span className="bouut-plan-card-kicker">{selected ? 'Selected Plan' : 'Promotion Plan'}</span>
+                                <strong>{plan.title}</strong>
+                                <span className="bouut-plan-price">{formatCurrency(plan.price)}</span>
+                                <p>{plan.description}</p>
+                                <ul>
+                                    {plan.includes.map(item => (
+                                        <li key={item}>{item}</li>
+                                    ))}
+                                </ul>
+                            </button>
+                        );
+                    })}
+                </div>
+                {initialPlan && !isValidPlan(initialPlan) ? (
+                    <p className="bouut-form-error">The selected plan link is invalid. Please choose a plan below.</p>
+                ) : null}
+            </div>
 
             <div className="bouut-form-group full-width" style={{ marginBottom: '20px' }}>
                 <label>Link to the song<span className="bouut-required">*</span></label>
@@ -285,7 +381,7 @@ export function PromoteMusicForm({ onSubmit, onCancel }: PromoteMusicFormProps) 
             </div>
 
             <div className="bouut-form-group full-width" style={{ marginBottom: '16px' }}>
-                <label>Our Services</label>
+                <label>Optional add-ons</label>
                 <div className="bouut-service-list">
                     {PROMOTION_SERVICES.map(service => {
                         const selected = selectedServices.includes(service.id);
@@ -337,6 +433,16 @@ export function PromoteMusicForm({ onSubmit, onCancel }: PromoteMusicFormProps) 
                 </div>
 
                 <div className="bouut-total-box">
+                    {selectedPlanDetails ? (
+                        <div className="bouut-total-line">
+                            <span>{selectedPlanDetails.title}</span>
+                            <strong>{formatCurrency(planSubtotal)}</strong>
+                        </div>
+                    ) : null}
+                    <div className="bouut-total-line">
+                        <span>Add-ons</span>
+                        <strong>{formatCurrency(addOnsSubtotal)}</strong>
+                    </div>
                     <div className="bouut-total-line">
                         <span>Subtotal</span>
                         <strong>{formatCurrency(subtotal)}</strong>

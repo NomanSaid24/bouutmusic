@@ -18,7 +18,7 @@ import { formatArtistLocation, getPrimaryArtistType } from '@/lib/profile';
 const THINGS_TO_DO = [
     { num: 1, text: 'Apply in publication opportunity', due: 'Due Apr 15' },
     { num: 2, text: 'Apply in radio play opportunity', due: 'Due Apr 30' },
-    { num: 3, text: 'Complete your e-Press Kit', due: 'Keep your profile fresh' },
+    { num: 3, text: 'Complete your E-Profile', due: 'Keep your profile fresh' },
     { num: 4, text: 'Upload your first song', due: 'Start distributing' },
 ];
 
@@ -148,11 +148,11 @@ export default function DashboardPage() {
                             </div>
                             <div style={{ display: 'grid', gap: 10 }}>
                                 <Link href="/dashboard/epk" className="btn btn-primary w-full" style={{ justifyContent: 'center' }}>
-                                    <UserRoundPen size={16} /> Update EPK
+                                    <UserRoundPen size={16} /> Update E-Profile
                                 </Link>
                                 {user.slug && (
                                     <Link href={`/${user.slug}`} className="btn btn-outline w-full" style={{ justifyContent: 'center' }}>
-                                        View Public EPK
+                                        View Public E-Profile
                                     </Link>
                                 )}
                             </div>

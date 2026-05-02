@@ -1,7 +1,8 @@
 'use client';
 
-import { Fragment, useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   BadgeHelp,
   Check,
@@ -11,456 +12,312 @@ import {
   Crown,
   Disc3,
   Globe2,
+  Rocket,
+  ShieldCheck,
   Sparkles,
-  X,
 } from 'lucide-react';
+import { useAuth } from '@/components/providers/AuthProvider';
 import styles from './ReleaseLandingPage.module.css';
 
-type ChoiceCard = {
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
+type ReleasePlan = {
+  id: 'single' | 'pro' | 'premium';
   title: string;
-  description: string;
-  bullets: string[];
-  cta: string;
-  href: string;
-  note?: string;
-  icon: typeof Disc3;
-  featured?: boolean;
+  price: number;
+  label: string;
+  badge?: string;
+  summary: string;
+  bestFor: string;
+  features: string[];
 };
 
-type CompareCell = {
-  primary: string;
-  secondary?: string;
-};
-
-type CompareSection = {
-  title: string;
-  rows: {
-    label: string;
-    upload: CompareCell;
-    release: CompareCell;
-  }[];
-};
-
-const choiceCards: ChoiceCard[] = [
+const releasePlans: ReleasePlan[] = [
   {
-    title: 'Release your music worldwide',
-    description:
-      'Put your release on 150+ streaming services and own a cleaner, more professional launch path.',
-    bullets: ['Keep more of your royalties', 'Reach DSPs like Spotify, Apple Music and YouTube'],
-    cta: 'Release Your Music',
-    href: '#release-benefits',
-    note: 'Best for official distribution',
-    icon: Disc3,
-    featured: true,
-  },
-  {
-    title: 'Upload directly to Bouut',
-    description:
-      'Share old and new music inside the Bouut ecosystem and keep your profile fresh for industry stakeholders.',
-    bullets: ['Keep your e-Press Kit active', 'Use Bouut promotion and discovery tools'],
-    cta: 'Upload on Bouut',
-    href: '#release-comparison',
-    icon: CloudUpload,
-  },
-];
-
-const distributionFeatures = [
-  'Your music on 150+ global platforms like Spotify, Apple Music, Amazon Music and YouTube.',
-  'Free delivery to future partner platforms as Bouut expands distribution reach.',
-  'Monetization options including YouTube Content ID and social-platform support.',
-  'Discovery support through tools like Shazam and key social integrations.',
-  'Free UPC barcodes and ISRC support for cleaner catalog delivery.',
-  'Detailed sales reports and payout visibility inside your Bouut workspace.',
-  'Eligibility for promo services, playlist pitching and campaign add-ons.',
-  'Access to Bouut growth tools like smart promotion and profile-ready assets.',
-];
-
-const comparisonSections: CompareSection[] = [
-  {
-    title: 'Basic Details',
-    rows: [
-      {
-        label: 'Number of Platforms',
-        upload: { primary: '1', secondary: 'Bouut only' },
-        release: { primary: '150+ Platforms', secondary: 'Spotify, Apple Music, YouTube and more' },
-      },
-      {
-        label: 'Monetization Through Streaming',
-        upload: { primary: 'No' },
-        release: { primary: 'Yes', secondary: 'Built for platform royalties' },
-      },
-      {
-        label: 'Audio Fingerprinting',
-        upload: { primary: 'No' },
-        release: { primary: 'Yes' },
-      },
+    id: 'single',
+    title: 'Single Release',
+    price: 499,
+    label: 'Starter distribution',
+    summary: 'Get your music live worldwide with the essentials handled cleanly.',
+    bestFor: 'First-time releases',
+    features: [
+      'Get your music live worldwide',
+      'Distribution to major platforms',
+      'Spotify, Apple Music, YouTube Music, and more',
+      'Artist profile setup (if new)',
+      'Basic metadata setup',
+      'YouTube Content ID',
+      'Lifetime royalty collection setup',
     ],
   },
   {
-    title: 'Requirements',
-    rows: [
-      {
-        label: 'Audio File Type',
-        upload: { primary: '.wav / .mp3 / .flac' },
-        release: { primary: '.wav', secondary: '16 bit, 44.1 kHz' },
-      },
-      {
-        label: 'Artwork',
-        upload: { primary: '.jpg / .png / .gif' },
-        release: { primary: '.jpg', secondary: '3000 x 3000 px' },
-      },
-      {
-        label: 'Delivery Time',
-        upload: { primary: 'Instant' },
-        release: { primary: '7 Days' },
-      },
+    id: 'pro',
+    title: 'Pro Release',
+    price: 999,
+    label: 'Best reach + value',
+    badge: 'Most Popular',
+    summary: 'Release with better discovery, faster handling, and stronger metadata.',
+    bestFor: 'Serious independent artists',
+    features: [
+      'Release + better reach + discovery',
+      'Everything in Single, plus',
+      'Worldwide + all major Indian platforms',
+      'Faster delivery',
+      'Unlimited tracks',
+      'Metadata optimization for discovery',
+      'Release date planning support',
+      'Basic pre-release guidance',
+      'Optional Bouut promotion integration',
     ],
   },
   {
-    title: 'Benefits on Bouut',
-    rows: [
-      {
-        label: 'Creation of e-Press Kit',
-        upload: { primary: 'Yes' },
-        release: { primary: 'Yes' },
-      },
-      {
-        label: 'Easy Apply to Opportunities',
-        upload: { primary: 'Yes' },
-        release: { primary: 'Yes' },
-      },
-      {
-        label: 'Access to Promotional Tools',
-        upload: { primary: 'Yes', secondary: 'Limited' },
-        release: { primary: 'Yes', secondary: 'Includes radio, TV and playlist pitching' },
-      },
+    id: 'premium',
+    title: 'Premium Release',
+    price: 1999,
+    label: 'Strategy + visibility',
+    summary: 'A more guided release path with visibility support and priority handling.',
+    bestFor: 'Artists releasing professionally',
+    features: [
+      'Release + strategy + visibility support',
+      'Everything in Pro, plus',
+      'Pre-release strategy support',
+      'Priority support & fast delivery',
+      'Lyrics distribution',
+      'Social media promotion assistance',
+      'Caller tune distribution',
+      'Publishing & copyright protection',
+      'Priority placement for review/handling',
     ],
   },
 ];
 
-const proBenefits = [
-  'Upload Unlimited Tracks',
-  'Distribute Unlimited Tracks',
-  'Basic Opportunities',
-  'Exclusive Opportunities',
-  'Basic Tools: Social Media Banners, Press Release and profile assets',
-  'Customizable Tools: Social Cards, AI Press Release and Pre Save Links',
-  'Pitching Tools: Radio, TV and playlist support',
-  'Personalized e-Press Kit',
+const timeline = [
+  { title: 'Choose plan', detail: 'Pick Single, Pro, or Premium based on release goals.' },
+  { title: 'Pay securely', detail: 'Complete checkout through the existing PayU payment flow.' },
+  { title: 'Upload release', detail: 'Your My Releases area unlocks after payment.' },
+  { title: 'Go live', detail: 'Bouut handles delivery, metadata, and review support.' },
 ];
+
+function formatPrice(value: number) {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(value);
+}
 
 export function ReleaseLandingPage() {
-  const [showMembershipPopup, setShowMembershipPopup] = useState(false);
+  const router = useRouter();
+  const { token, openAuthModal, isLoading: isAuthLoading } = useAuth();
+  const [selectedPlanId, setSelectedPlanId] = useState<ReleasePlan['id']>('pro');
+  const [submittingPlanId, setSubmittingPlanId] = useState<ReleasePlan['id'] | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!showMembershipPopup) {
-      return undefined;
+  const selectedPlan = useMemo(
+    () => releasePlans.find(plan => plan.id === selectedPlanId) || releasePlans[1],
+    [selectedPlanId],
+  );
+
+  async function handleStartPlan(planId: ReleasePlan['id']) {
+    setSelectedPlanId(planId);
+    setError(null);
+
+    if (!token) {
+      openAuthModal('login', '/dashboard/release');
+      return;
     }
 
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousBodyPosition = document.body.style.position;
-    const previousBodyTop = document.body.style.top;
-    const previousBodyWidth = document.body.style.width;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-    const scrollY = window.scrollY;
+    setSubmittingPlanId(planId);
 
-    document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = '100%';
-    document.documentElement.style.overflow = 'hidden';
+    try {
+      const response = await fetch(`${API_URL}/api/services/release/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ planId }),
+      });
 
-    return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      document.body.style.position = previousBodyPosition;
-      document.body.style.top = previousBodyTop;
-      document.body.style.width = previousBodyWidth;
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      window.scrollTo(0, scrollY);
-    };
-  }, [showMembershipPopup]);
+      const payload = await response.json().catch(() => null) as {
+        redirectUrl?: string;
+        error?: string;
+      } | null;
+
+      if (!response.ok || !payload?.redirectUrl) {
+        throw new Error(payload?.error || 'Unable to start release checkout.');
+      }
+
+      router.push(payload.redirectUrl);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Unable to start release checkout.');
+    } finally {
+      setSubmittingPlanId(null);
+    }
+  }
 
   return (
-    <>
-      <div className={styles.page}>
-        <div className="breadcrumb">
-          <Link href="/dashboard">Home</Link>
-          <span>/</span>
-          Distribute Your Music
-        </div>
+    <div className={styles.releasePage}>
+      <div className="breadcrumb">
+        <Link href="/dashboard">Home</Link>
+        <span>/</span>
+        Release My Music
+      </div>
 
-        <section className={styles.banner}>
-          <div className={styles.bannerCopy}>
-            <span className={styles.bannerEyebrow}>Bouut Distribution</span>
-            <h2>Get your track on 150+ platforms and keep more of every stream.</h2>
-            <p>Launch once, stay everywhere, and manage your release from one Bouut workspace.</p>
-          </div>
-          <Link href="#release-benefits" className={styles.bannerButton}>
-            Start Release
-            <ChevronRight size={16} />
-          </Link>
-          <div className={styles.bannerBadge}>
-            <span>150+</span>
-            <small>Platforms</small>
-          </div>
-        </section>
-
-        <div className={styles.headingRow}>
-          <div>
-            <h1 className={styles.pageTitle}>Distribute Your Music</h1>
-            <p className={styles.pageSubtitle}>Choose the purpose of your upload</p>
-          </div>
-          <button type="button" className={styles.helpButton} aria-label="Distribution help">
-            <BadgeHelp size={18} />
-          </button>
-        </div>
-
-        <section className={styles.choiceGrid}>
-          {choiceCards.map(card => {
-            const Icon = card.icon;
-            const isPremium = card.featured;
-
-            return (
-              <article
-                key={card.title}
-                className={`${styles.choiceCard} ${card.featured ? styles.choiceCardFeatured : ''}`}
-              >
-                {card.featured && (
-                  <div className={styles.recommendedBadge}>
-                    <Crown size={15} />
-                  </div>
-                )}
-                <div className={styles.choiceIconWrap}>
-                  <div className={styles.choiceIconBox}>
-                    <Icon size={38} strokeWidth={1.8} />
-                  </div>
-                </div>
-                <div className={styles.choiceContent}>
-                  <h3>{card.title}</h3>
-                  <p>{card.description}</p>
-                  <ul className={styles.choiceList}>
-                    {card.bullets.map(item => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                  <div className={styles.choiceActions}>
-                    {isPremium ? (
-                      <button
-                        type="button"
-                        className={`${styles.choiceButton} ${styles.actionButton}`}
-                        onClick={() => setShowMembershipPopup(true)}
-                      >
-                        {card.cta}
-                      </button>
-                    ) : (
-                      <Link href={card.href} className={styles.choiceButton}>
-                        {card.cta}
-                      </Link>
-                    )}
-                    {card.note && <span className={styles.choiceNote}>{card.note}</span>}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </section>
-
-        <section id="release-benefits" className={styles.infoSection}>
-          <div className={styles.infoHeader}>
-            <div>
-              <span className={styles.infoEyebrow}>Release With Bouut</span>
-              <h2>Release Your Music with Bouut</h2>
-              <p>
-                Get your music on 150+ platforms including Spotify, Apple Music, Amazon Music and more.
-                Unlimited releases. A cleaner catalog. A stronger artist profile.
-              </p>
-            </div>
-            <div className={styles.infoStamp}>
-              <Sparkles size={18} />
-              <span>Artist-first delivery</span>
-            </div>
-          </div>
-
-          <div className={styles.featureStack}>
-            {distributionFeatures.map(feature => (
-              <div key={feature} className={styles.featureRow}>
-                <CircleCheckBig size={18} />
-                <span>{feature}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className={styles.inlineActions}>
+      <section className={styles.releaseHero}>
+        <div className={styles.releaseHeroCopy}>
+          <span className={styles.releaseEyebrow}>
+            <Globe2 size={15} />
+            Bouut Distribution
+          </span>
+          <h1>Release your music worldwide with a launch path built for artists.</h1>
+          <p>
+            Pick a plan, complete PayU checkout, and unlock your release workspace so you can submit music
+            for distribution with the right metadata, support, and visibility.
+          </p>
+          <div className={styles.releaseHeroActions}>
             <button
               type="button"
-              className={`${styles.primaryAction} ${styles.actionButton}`}
-              onClick={() => setShowMembershipPopup(true)}
+              className={styles.releasePrimaryButton}
+              onClick={() => void handleStartPlan(selectedPlan.id)}
+              disabled={isAuthLoading || submittingPlanId !== null}
             >
-              Release Your Music
+              {submittingPlanId ? 'Opening Checkout...' : `Start ${selectedPlan.title}`}
+              <ChevronRight size={16} />
             </button>
-            <Link href="/dashboard/promo-tools" className={styles.secondaryAction}>
-              Explore Promo Tools
-            </Link>
-          </div>
-        </section>
-
-        <section id="release-comparison" className={styles.compareSection}>
-          <div className={styles.compareHeading}>
-            <div>
-              <h2>Choose what fits best for you</h2>
-              <p>Compare a Bouut-only upload with a full music distribution release.</p>
-            </div>
-            <div className={styles.compareLegend}>
-              <div className={styles.legendChip}>Upload</div>
-              <div className={`${styles.legendChip} ${styles.legendChipFeatured}`}>Release</div>
-            </div>
-          </div>
-
-          <div className={styles.compareTableWrap}>
-            <table className={styles.compareTable}>
-              <thead>
-                <tr>
-                  <th />
-                  <th>Upload</th>
-                  <th>
-                    <span className={styles.releaseHeader}>
-                      <Crown size={15} />
-                      Release
-                    </span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {comparisonSections.map(section => (
-                  <Fragment key={section.title}>
-                    <tr className={styles.sectionRow}>
-                      <th>{section.title}</th>
-                      <td />
-                      <td />
-                    </tr>
-                    {section.rows.map(row => (
-                      <tr key={`${section.title}-${row.label}`}>
-                        <th>{row.label}</th>
-                        <td>
-                          <strong>{row.upload.primary}</strong>
-                          {row.upload.secondary && <span>{row.upload.secondary}</span>}
-                        </td>
-                        <td>
-                          <strong>{row.release.primary}</strong>
-                          {row.release.secondary && <span>{row.release.secondary}</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className={styles.compareCtaRow}>
-            <button
-              type="button"
-              className={`${styles.primaryAction} ${styles.actionButton}`}
-              onClick={() => setShowMembershipPopup(true)}
-            >
-              Start Distribution
-            </button>
-            <Link href="/dashboard/release/my-releases" className={styles.secondaryAction}>
+            <Link href="/dashboard/release/my-releases" className={styles.releaseSecondaryButton}>
               View My Releases
             </Link>
           </div>
-        </section>
+          {error && <div className={styles.releaseError}>{error}</div>}
+        </div>
 
-        <section className={styles.bottomNote}>
-          <div className={styles.bottomNoteCard}>
-            <Globe2 size={18} />
+        <div className={styles.releaseHeroPanel}>
+          <div className={styles.releasePanelTop}>
+            <Disc3 size={30} />
             <div>
-              <strong>Need help before you release?</strong>
-              <span>
-                Keep your Bouut e-Press Kit updated and your promo tools ready before launch day.
-              </span>
+              <strong>150+ platforms</strong>
+              <span>Spotify, Apple Music, YouTube Music, Indian DSPs, and more.</span>
             </div>
-            <Link href="/dashboard/epk" className={styles.bottomNoteLink}>
-              Update EPK
-            </Link>
           </div>
-        </section>
-      </div>
-
-      {showMembershipPopup && (
-        <div
-          className={styles.membershipOverlay}
-          onClick={event => {
-            if (event.target === event.currentTarget) {
-              setShowMembershipPopup(false);
-            }
-          }}
-        >
-          <div className={styles.membershipDialog}>
-            <button
-              type="button"
-              className={styles.membershipClose}
-              onClick={() => setShowMembershipPopup(false)}
-              aria-label="Close membership popup"
-            >
-              <X size={18} />
-            </button>
-
-            <div className={styles.membershipScrollArea}>
-              <div className={styles.membershipHeader}>
-                <h3>Choose Your Membership Plan</h3>
-                <p>Get access to exclusive opportunities with Bouut Pro</p>
-              </div>
-
-              <div className={styles.membershipBody}>
-                <div className={styles.membershipVisual}>
-                  <img
-                    src="https://songdew.com/assets/subscription/prouser.svg"
-                    alt="Songdew membership illustration"
-                    className={styles.membershipVisualImage}
-                  />
-                </div>
-
-                <div className={styles.membershipDetails}>
-                  <div className={styles.membershipPlanHeading}>
-                    <Crown size={16} />
-                    <span>Pro</span>
-                  </div>
-
-                  <div className={styles.membershipBenefitTable}>
-                    {proBenefits.map(benefit => (
-                      <div key={benefit} className={styles.membershipBenefitRow}>
-                        <span>{benefit}</span>
-                        <div className={styles.membershipBenefitCheck}>
-                          <Check size={14} strokeWidth={2.5} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className={styles.membershipPlanCard}>
-                    <span className={styles.membershipSelectedDot} />
-                    <h4>Pro</h4>
-                    <div className={styles.membershipPriceStack}>
-                      <span className={styles.membershipOldPrice}>Rs. 4,000/Year</span>
-                      <span className={styles.membershipNewPrice}>Rs. 2,000/Year</span>
-                    </div>
-                  </div>
-
-                  <Link
-                    href="/dashboard/subscription"
-                    className={styles.membershipContinue}
-                    onClick={() => setShowMembershipPopup(false)}
-                  >
-                    Continue with Pro
-                    <ChevronRight size={16} />
-                  </Link>
+          <div className={styles.releaseTimeline}>
+            {timeline.map((item, index) => (
+              <div key={item.title} className={styles.releaseTimelineItem}>
+                <span>{index + 1}</span>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.detail}</p>
                 </div>
               </div>
-            </div>
+            ))}
           </div>
         </div>
-      )}
-    </>
+      </section>
+
+      <section className={styles.releaseTrustRail} aria-label="Release benefits">
+        <div>
+          <ShieldCheck size={18} />
+          YouTube Content ID
+        </div>
+        <div>
+          <CircleCheckBig size={18} />
+          Lifetime royalty collection
+        </div>
+        <div>
+          <Sparkles size={18} />
+          Metadata optimization
+        </div>
+        <div>
+          <CloudUpload size={18} />
+          Upload unlock after payment
+        </div>
+      </section>
+
+      <section className={styles.releasePricingSection}>
+        <div className={styles.releaseSectionHeader}>
+          <span className={styles.releaseMiniLabel}>Release plans</span>
+          <h2>Choose how much support your release needs.</h2>
+          <p>
+            These are one-time release plans. After payment, the My Releases page unlocks and you can submit your music.
+          </p>
+        </div>
+
+        <div className={styles.releasePlanGrid}>
+          {releasePlans.map(plan => {
+            const isSelected = selectedPlanId === plan.id;
+            const isSubmitting = submittingPlanId === plan.id;
+
+            return (
+              <article
+                key={plan.id}
+                className={`${styles.releasePlanCard} ${plan.id === 'pro' ? styles.releasePlanPopular : ''} ${
+                  isSelected ? styles.releasePlanSelected : ''
+                }`}
+              >
+                {plan.badge && (
+                  <div className={styles.releasePlanBadge}>
+                    <Crown size={14} />
+                    {plan.badge}
+                  </div>
+                )}
+                <div className={styles.releasePlanHead}>
+                  <span>{plan.label}</span>
+                  <h3>{plan.title}</h3>
+                  <p>{plan.summary}</p>
+                </div>
+                <div className={styles.releasePriceRow}>
+                  <strong>{formatPrice(plan.price)}</strong>
+                  <small>one-time</small>
+                </div>
+                <div className={styles.releaseBestFor}>
+                  <BadgeHelp size={15} />
+                  Best for: {plan.bestFor}
+                </div>
+                <ul className={styles.releaseFeatureList}>
+                  {plan.features.map(feature => (
+                    <li key={feature}>
+                      <Check size={15} />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  className={styles.releasePlanButton}
+                  onClick={() => void handleStartPlan(plan.id)}
+                  disabled={isAuthLoading || submittingPlanId !== null}
+                >
+                  {isSubmitting ? 'Preparing...' : `Choose ${plan.title}`}
+                  <ChevronRight size={15} />
+                </button>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className={styles.releaseChoiceNote}>
+          <Rocket size={18} />
+          <div>
+            <strong>Not sure which plan to choose?</strong>
+            <span>Most artists start with PRO RELEASE ({formatPrice(999)}) for best reach + value.</span>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.releaseUploadBand}>
+        <div>
+          <span className={styles.releaseMiniLabel}>After payment</span>
+          <h2>Your release workspace opens automatically.</h2>
+          <p>
+            My Releases stays locked until a release plan is paid. Once unlocked, upload your audio,
+            artwork, and track details from the release workspace.
+          </p>
+        </div>
+        <Link href="/dashboard/release/my-releases" className={styles.releaseBandButton}>
+          Go to My Releases
+          <ChevronRight size={16} />
+        </Link>
+      </section>
+    </div>
   );
 }

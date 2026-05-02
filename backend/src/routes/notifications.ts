@@ -6,21 +6,21 @@ const router = Router();
 
 router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
     try {
+        const limit = Math.min(Math.max(parseInt(String(req.query.limit || '50'), 10) || 50, 1), 100);
         const notifications = await prisma.notification.findMany({
             where: { userId: req.user!.id },
             orderBy: { createdAt: 'desc' },
-            take: 50,
+            take: limit,
         });
-        return res.json(notifications);
-    } catch {
-        return res.status(500).json({ error: 'Failed' });
-    }
-});
 
-router.put('/:id/read', authenticate, async (req: AuthRequest, res: Response) => {
-    try {
-        await prisma.notification.update({ where: { id: req.params.id }, data: { read: true } });
-        return res.json({ message: 'Marked read' });
+        const unreadCount = await prisma.notification.count({
+            where: {
+                userId: req.user!.id,
+                read: false,
+            },
+        });
+
+        return res.json({ notifications, unreadCount });
     } catch {
         return res.status(500).json({ error: 'Failed' });
     }
@@ -30,6 +30,21 @@ router.put('/read-all', authenticate, async (req: AuthRequest, res: Response) =>
     try {
         await prisma.notification.updateMany({ where: { userId: req.user!.id, read: false }, data: { read: true } });
         return res.json({ message: 'All marked read' });
+    } catch {
+        return res.status(500).json({ error: 'Failed' });
+    }
+});
+
+router.put('/:id/read', authenticate, async (req: AuthRequest, res: Response) => {
+    try {
+        await prisma.notification.updateMany({
+            where: {
+                id: req.params.id,
+                userId: req.user!.id,
+            },
+            data: { read: true },
+        });
+        return res.json({ message: 'Marked read' });
     } catch {
         return res.status(500).json({ error: 'Failed' });
     }

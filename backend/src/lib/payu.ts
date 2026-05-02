@@ -170,7 +170,7 @@ export function getPayuPostserviceUrl(mode: string) {
 export function getPayuVerifyUrl(mode: string) {
     return mode === 'live'
         ? 'https://info.payu.in/v3/transaction'
-        : 'https://test.payu.in/v3/transaction';
+        : 'https://apitest.payu.in/v3/transaction';
 }
 
 function normalizeOptional(value?: string | null) {

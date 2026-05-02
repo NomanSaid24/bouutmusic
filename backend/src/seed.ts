@@ -176,6 +176,9 @@ async function main() {
                 avatar: ARTIST_AVATARS[i % ARTIST_AVATARS.length],
                 banner: ARTIST_BANNERS[i % ARTIST_BANNERS.length],
                 isPro: i < 5,  // first 5 artists are Pro
+                roasterFeatured: i < 4,
+                roasterOrder: i + 1,
+                roasterFeaturedAt: i < 4 ? new Date() : null,
                 onboardingCompleted: true,
                 profileProgress: calculateProfileProgress({
                     avatar: ARTIST_AVATARS[i % ARTIST_AVATARS.length],
@@ -303,9 +306,10 @@ async function main() {
     // 9. Create services (Promo Tools)
     const services = [
         { name: 'Submit my demo', description: 'Accepting demos from all genres for review. Get featured on our page and attached for potentially big opportunities.', price: 0, features: ['Review within 7 days', 'All genres accepted', 'Social media feature potential'] },
-        { name: 'Release your music with us', description: 'Professional distribution to all major platforms including Spotify, Apple Music, and Amazon Music.', price: 299, features: ['Fast distribution', 'Royalty collection', 'Technical support'] },
+        { id: 'release-music-service', name: 'Release My Music', description: 'Worldwide music distribution with metadata, Content ID, and release support.', price: 499, features: ['Single Release - Rs. 499', 'Pro Release - Rs. 999', 'Premium Release - Rs. 1,999'] },
         { name: 'Get playlisted', description: 'Submit your tracks to our curated playlists and reach new audiences.', price: 0, features: ['Playlist consideration', 'Genre matching', 'Audience growth'] },
-        { name: 'Promote my music', description: 'Custom digital marketing campaigns to give your release the boost it needs.', price: 4999, features: ['Social ads', 'Influencer reach', 'Detailed analytics'] },
+        { name: 'Promote your music', description: 'Custom digital marketing campaigns to give your release the boost it needs.', price: 299, features: ['Story + post/reel plans', 'Friday Spotlight access', 'Artist introduction options'] },
+        { id: 'growth-engine-service', name: 'Growth Engine', description: 'Monthly artist growth program with campaign planning and promotional support.', price: 1499, features: ['Weekly content support', 'Friday Spotlight access', 'Campaign planning'] },
         { name: 'Collaborate with us', description: 'Looking to partner on projects or explore mutual growth? Let\'s connect.', price: 0, features: ['Brand partnerships', 'Event collaboration', 'Project pitch'] },
     ];
     for (const svc of services) {

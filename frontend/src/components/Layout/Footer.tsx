@@ -12,7 +12,7 @@ const footerColumns = [
   {
     title: 'Discover',
     links: [
-      { label: 'Artists', href: '/artists' },
+      { label: 'Roaster', href: '/roaster' },
       { label: 'Playlists', href: '/playlists' },
       { label: 'Blogs', href: '/blogs' },
     ],
@@ -20,7 +20,7 @@ const footerColumns = [
   {
     title: 'Artists',
     links: [
-      { label: 'e-Press Kit', href: '/dashboard/epk' },
+      { label: 'E-Profile', href: '/dashboard/epk' },
       { label: 'Distribute', href: '/dashboard/release' },
       { label: 'Promote', href: '/dashboard/promo-tools' },
       { label: 'Broadcast on TV', href: '/dashboard/broadcast' },
@@ -29,18 +29,19 @@ const footerColumns = [
   {
     title: 'Company',
     links: [
+      { label: 'About Us', href: '/about-us' },
+      { label: 'Contact Us', href: '/contact-us' },
       { label: 'Careers', href: '/blogs' },
-      { label: 'Contact Us', href: '/dashboard/settings' },
-      { label: 'Community Guidelines', href: '/blogs' },
-      { label: 'Privacy Policy', href: '/blogs' },
     ],
   },
   {
     title: 'Terms',
     links: [
-      { label: 'Terms of Use', href: '/blogs' },
-      { label: 'License Agreement', href: '/blogs' },
-      { label: 'Publishing Agreement', href: '/blogs' },
+      { label: 'Terms of Use', href: '/terms-of-use' },
+      { label: 'Privacy Policy', href: '/privacy-policy' },
+      { label: 'Community Guidelines', href: '/community-guidelines' },
+      { label: 'License Agreement', href: '/license-agreement' },
+      { label: 'Publishing Agreement', href: '/publishing-agreement' },
     ],
   },
 ];

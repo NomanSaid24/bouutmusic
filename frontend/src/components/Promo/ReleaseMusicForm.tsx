@@ -9,7 +9,7 @@ interface ReleaseFormProps {
 export function ReleaseMusicForm({ onSubmit, onCancel }: ReleaseFormProps) {
     const [step, setStep] = useState(1);
     const [formData, setFormData] = useState({
-        plan: 'Basic',
+        plan: 'single',
         email: '',
         phone: '',
         artistName: '',
@@ -82,9 +82,9 @@ export function ReleaseMusicForm({ onSubmit, onCancel }: ReleaseFormProps) {
                     <div className="bouut-form-group full-width" style={{ marginBottom: '20px' }}>
                         <label>Choose a Plan<span className="bouut-required">*</span></label>
                         <select name="plan" value={formData.plan} onChange={handleChange}>
-                            <option value="Basic">Basic (₹299)</option>
-                            <option value="Standard">Standard (₹499)</option>
-                            <option value="Premium">Premium (₹999)</option>
+                            <option value="single">Single Release (Rs. 499)</option>
+                            <option value="pro">Pro Release (Rs. 999)</option>
+                            <option value="premium">Premium Release (Rs. 1,999)</option>
                         </select>
                     </div>
 

@@ -13,6 +13,7 @@ import {
     getPayuConfigOrThrow,
     verifyPayuPaymentStatus,
 } from '../lib/payu';
+import { notifyUserAndAdmins } from '../utils/notifications';
 
 const router = Router();
 
@@ -33,6 +34,11 @@ type BillingPayload = {
 type PayuCallbackPayload = {
     key?: string;
     txnid?: string;
+    txnId?: string;
+    paymentId?: string;
+    checkoutId?: string;
+    referenceId?: string;
+    reference_id?: string;
     amount?: string;
     productinfo?: string;
     firstname?: string;
@@ -74,6 +80,14 @@ type CheckoutSummary = {
 };
 
 function normalizeString(value: unknown) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return String(value);
+    }
+
+    if (typeof value === 'boolean') {
+        return String(value);
+    }
+
     if (typeof value !== 'string') {
         return '';
     }
@@ -150,7 +164,13 @@ function buildHostedCheckoutRequest(options: {
 }) {
     const amount = formatPayuAmount(options.payment.amount);
     const { firstName, lastName } = splitFullName(options.payment.billingName);
-    const callbackUrl = `${process.env.BACKEND_PUBLIC_URL?.trim() || `http://localhost:${process.env.PORT || 4000}`}/api/payments/payu/callback`;
+    const callbackBaseUrl = `${process.env.BACKEND_PUBLIC_URL?.trim() || `http://localhost:${process.env.PORT || 4000}`}/api/payments/payu/callback`;
+    const callbackQuery = new URLSearchParams({
+        paymentId: options.payment.id,
+        txnid: options.payment.payuTxnId || '',
+        type: options.udf2,
+    });
+    const callbackUrl = `${callbackBaseUrl}?${callbackQuery.toString()}`;
 
     return {
         accountId: options.merchantKey,
@@ -276,11 +296,15 @@ function buildCheckoutResponse(
 }
 
 function getSubscriptionRedirectUrl(paymentId: string, result: string) {
-    return `${getFrontendBaseUrl()}/dashboard/subscription/payment?checkoutId=${paymentId}&gateway=payu&result=${encodeURIComponent(result)}`;
+    return `${getFrontendBaseUrl()}/payment/thank-you?checkoutId=${paymentId}&type=subscription&gateway=payu&result=${encodeURIComponent(result)}`;
 }
 
 function getServiceRedirectUrl(paymentId: string, result: string) {
-    return `${getFrontendBaseUrl()}/dashboard/promo-tools/payment?checkoutId=${paymentId}&gateway=payu&result=${encodeURIComponent(result)}`;
+    return `${getFrontendBaseUrl()}/payment/thank-you?checkoutId=${paymentId}&type=service&gateway=payu&result=${encodeURIComponent(result)}`;
+}
+
+function getPayuCallbackFallbackUrl(result = 'received') {
+    return `${getFrontendBaseUrl()}/payment/thank-you?gateway=payu&result=${encodeURIComponent(result)}`;
 }
 
 function buildServiceSummary(payment: {
@@ -307,10 +331,85 @@ function buildServiceSummary(payment: {
     };
 }
 
+function parseJsonRecord(value: string | null) {
+    if (!value) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(value) as Record<string, unknown>;
+        return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+function getServiceSubmissionProductName(submission: {
+    service: { name: string };
+    formData: string | null;
+}) {
+    const formData = parseJsonRecord(submission.formData);
+
+    if (formData?.serviceType === 'growth-engine') {
+        const plan = formData.plan;
+        const planTitle = plan && typeof plan === 'object' && 'title' in plan && typeof plan.title === 'string'
+            ? plan.title
+            : '';
+
+        return planTitle ? `Growth Engine ${planTitle} Monthly` : 'Growth Engine Monthly';
+    }
+
+    if (formData?.serviceType === 'release-music') {
+        const plan = formData.plan;
+        const planTitle = plan && typeof plan === 'object' && 'title' in plan && typeof plan.title === 'string'
+            ? plan.title
+            : '';
+
+        return planTitle || 'Release My Music';
+    }
+
+    return submission.service.name;
+}
+
+function getPayuVerifyTransactions(parsed: Record<string, unknown> | null) {
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.result)) {
+        return [];
+    }
+
+    return parsed.result.filter((item): item is Record<string, unknown> =>
+        !!item && typeof item === 'object',
+    );
+}
+
+function findPayuVerifiedTransaction(parsed: Record<string, unknown> | null, txnid: string) {
+    return getPayuVerifyTransactions(parsed).find(item =>
+        normalizeString(item.txnId || item.txnid || item.txnID) === txnid,
+    ) || null;
+}
+
+function getPayuVerifiedStatus(rawTransaction: Record<string, unknown> | null) {
+    if (!rawTransaction) {
+        return '';
+    }
+
+    return normalizeString(rawTransaction.status).toLowerCase();
+}
+
+function getPayuVerifiedAmount(rawTransaction: Record<string, unknown> | null) {
+    if (!rawTransaction) {
+        return '';
+    }
+
+    const amount = Number(rawTransaction.amount);
+    return Number.isFinite(amount) ? formatPayuAmount(amount) : normalizeString(rawTransaction.amount);
+}
+
 async function syncServiceSubmissionAfterPayment(payment: {
+    id?: string;
     status: string;
     completedAt: Date | null;
     submissionId: string | null;
+    userId?: string;
 }) {
     if (!payment.submissionId) {
         return;
@@ -340,8 +439,12 @@ async function syncServiceSubmissionAfterPayment(payment: {
 }
 
 async function applyPaymentCompletionEffects(payment: {
+    id: string;
     userId: string;
     type: string;
+    amount?: number;
+    currency?: string;
+    description?: string | null;
     status: string;
     completedAt: Date | null;
     submissionId: string | null;
@@ -349,11 +452,43 @@ async function applyPaymentCompletionEffects(payment: {
     if (payment.type === 'subscription' && payment.status === 'COMPLETED') {
         const settings = await getOrCreatePayuSettings();
         await extendUserProAccess(payment.userId, settings.proDurationDays);
+        await notifyUserAndAdmins(
+            payment.userId,
+            {
+                type: 'payment_paid',
+                title: 'Pro payment received',
+                message: 'Your Bouut Music Pro payment is complete. Your Pro access is now active.',
+                link: '/dashboard/subscription',
+            },
+            {
+                type: 'admin_payment_paid',
+                title: 'Pro payment received',
+                message: `A Pro subscription payment was completed${payment.amount ? ` for ${payment.currency || 'INR'} ${payment.amount}` : ''}.`,
+                link: '/admin/payments',
+            },
+        ).catch(error => console.error('Failed to create subscription notifications:', error));
         return;
     }
 
     if (payment.type === 'service') {
         await syncServiceSubmissionAfterPayment(payment);
+        if (payment.status === 'COMPLETED') {
+            await notifyUserAndAdmins(
+                payment.userId,
+                {
+                    type: 'payment_paid',
+                    title: 'Plan payment received',
+                    message: `${payment.description || 'Your selected plan'} payment is complete and queued for admin review.`,
+                    link: '/dashboard/promo-tools',
+                },
+                {
+                    type: 'admin_payment_paid',
+                    title: 'Service payment received',
+                    message: `${payment.description || 'A service plan'} payment was completed${payment.amount ? ` for ${payment.currency || 'INR'} ${payment.amount}` : ''}.`,
+                    link: '/admin/promo-submissions',
+                },
+            ).catch(error => console.error('Failed to create service payment notifications:', error));
+        }
     }
 }
 
@@ -382,17 +517,7 @@ async function syncPaymentRecord(paymentId: string) {
         parsed: null as Record<string, unknown> | null,
     }));
 
-    const rawTransaction =
-        verifyResult.parsed &&
-        typeof verifyResult.parsed === 'object' &&
-        Array.isArray(verifyResult.parsed.result)
-            ? verifyResult.parsed.result.find((item) =>
-                item &&
-                typeof item === 'object' &&
-                'txnId' in item &&
-                normalizeString((item as Record<string, unknown>).txnId) === payment.payuTxnId,
-            )
-            : null;
+    const rawTransaction = findPayuVerifiedTransaction(verifyResult.parsed, payment.payuTxnId);
 
     if (!rawTransaction || typeof rawTransaction !== 'object') {
         return prisma.payment.update({
@@ -403,9 +528,10 @@ async function syncPaymentRecord(paymentId: string) {
         });
     }
 
-    const payuStatus = normalizeString(rawTransaction.status).toLowerCase();
+    const payuStatus = getPayuVerifiedStatus(rawTransaction);
+    const verifiedAmountMatches = getPayuVerifiedAmount(rawTransaction) === formatPayuAmount(payment.amount);
     const nextStatus =
-        payuStatus === 'success'
+        payuStatus === 'success' && verifiedAmountMatches
             ? 'COMPLETED'
             : payuStatus === 'failure' || payuStatus === 'failed'
                 ? 'FAILED'
@@ -416,16 +542,16 @@ async function syncPaymentRecord(paymentId: string) {
         data: {
             status: nextStatus,
             gatewayOrderId: payment.payuTxnId,
-            gatewayPaymentId: normalizeOptionalString(rawTransaction.mihpayId),
-            payuMihpayId: normalizeOptionalString(rawTransaction.mihpayId),
-            payuBankRefNum: normalizeOptionalString(rawTransaction.bankReferenceNumber),
+            gatewayPaymentId: normalizeOptionalString(rawTransaction.mihpayId || rawTransaction.mihpayid),
+            payuMihpayId: normalizeOptionalString(rawTransaction.mihpayId || rawTransaction.mihpayid),
+            payuBankRefNum: normalizeOptionalString(rawTransaction.bankReferenceNumber || rawTransaction.bank_ref_num),
             payuPaymentMode: normalizeOptionalString(rawTransaction.mode),
             payuStatus: normalizeOptionalString(rawTransaction.status),
-            payuUnmappedStatus: normalizeOptionalString(rawTransaction.unmappedStatus),
+            payuUnmappedStatus: normalizeOptionalString(rawTransaction.unmappedStatus || rawTransaction.unmappedstatus),
             payuVerifiedResponse: verifyResult.raw,
             failureMessage: nextStatus === 'FAILED'
                 ? normalizeOptionalString(rawTransaction.errorMessage || rawTransaction.unmappedStatus || rawTransaction.status)
-                : null,
+                : (payuStatus === 'success' && !verifiedAmountMatches ? 'PayU verified amount did not match Bouut checkout amount' : null),
             completedAt: nextStatus === 'COMPLETED'
                 ? (payment.completedAt || new Date())
                 : payment.completedAt,
@@ -477,58 +603,64 @@ async function handlePayuCallback(req: PayuCallbackRequest, res: Response) {
             ...(req.query || {}),
             ...(req.body || {}),
         } as PayuCallbackPayload;
-        const txnid = normalizeString(payload.txnid);
+        const callbackTxnId = normalizeString(payload.txnid || payload.txnId);
         const status = normalizeString(payload.status);
         const responseHash = normalizeString(payload.hash).toLowerCase();
-
-        if (!txnid || !status || !responseHash) {
-            return res.status(400).send('Missing PayU callback fields');
-        }
-
-        const possiblePaymentId = normalizeString(payload.udf1);
+        const possiblePaymentId = normalizeString(
+            payload.udf1 ||
+            payload.paymentId ||
+            payload.checkoutId ||
+            payload.referenceId ||
+            payload.reference_id,
+        );
         const payment = await prisma.payment.findFirst({
             where: possiblePaymentId
                 ? {
                     OR: [
-                        { payuTxnId: txnid },
+                        ...(callbackTxnId ? [{ payuTxnId: callbackTxnId }] : []),
                         { id: possiblePaymentId },
                     ],
                 }
-                : { payuTxnId: txnid },
+                : callbackTxnId
+                    ? { payuTxnId: callbackTxnId }
+                    : { id: '__missing_payu_payment__' },
         });
 
         if (!payment) {
-            return res.status(404).send('Payment record not found');
+            return res.redirect(getPayuCallbackFallbackUrl('not_found'));
         }
 
         const { settings, salt1 } = await getPayuConfigOrThrow();
+        const txnid = callbackTxnId || payment.payuTxnId || '';
+
+        if (!txnid) {
+            return res.redirect(getPayuCallbackFallbackUrl('missing'));
+        }
+
         const additionalCharges = normalizeString(payload.additional_charges || payload.additionalCharges);
-        const expectedHash = generatePayuResponseHash({
-            key: normalizeString(payload.key) || (settings.merchantKey || ''),
-            txnid,
-            amount: normalizeString(payload.amount),
-            productinfo: normalizeString(payload.productinfo),
-            firstname: normalizeString(payload.firstname),
-            email: normalizeString(payload.email),
-            status,
-            udf1: normalizeOptionalString(payload.udf1),
-            udf2: normalizeOptionalString(payload.udf2),
-            udf3: normalizeOptionalString(payload.udf3),
-            udf4: normalizeOptionalString(payload.udf4),
-            udf5: normalizeOptionalString(payload.udf5),
-            additionalCharges: additionalCharges || null,
-        }, salt1).toLowerCase();
+        const expectedHash = status && responseHash
+            ? generatePayuResponseHash({
+                key: normalizeString(payload.key) || (settings.merchantKey || ''),
+                txnid,
+                amount: normalizeString(payload.amount),
+                productinfo: normalizeString(payload.productinfo),
+                firstname: normalizeString(payload.firstname),
+                email: normalizeString(payload.email),
+                status,
+                udf1: normalizeOptionalString(payload.udf1 || payment.id),
+                udf2: normalizeOptionalString(payload.udf2),
+                udf3: normalizeOptionalString(payload.udf3),
+                udf4: normalizeOptionalString(payload.udf4),
+                udf5: normalizeOptionalString(payload.udf5),
+                additionalCharges: additionalCharges || null,
+            }, salt1).toLowerCase()
+            : '';
 
         const txnMatches = payment.payuTxnId === txnid;
-        const amountMatches = formatPayuAmount(payment.amount) === normalizeString(payload.amount);
-        const hashMatches = expectedHash === responseHash;
+        const callbackAmount = normalizeString(payload.amount);
+        const amountMatches = !callbackAmount || formatPayuAmount(payment.amount) === callbackAmount;
+        const hashMatches = !!expectedHash && expectedHash === responseHash;
         const statusLower = status.toLowerCase();
-        const nextStatus =
-            hashMatches && txnMatches && amountMatches && statusLower === 'success'
-                ? 'COMPLETED'
-                : statusLower === 'failure' || statusLower === 'failed'
-                    ? 'FAILED'
-                    : 'PENDING';
 
         const verifyResult = await verifyPayuPaymentStatus(
             settings.mode,
@@ -540,27 +672,58 @@ async function handlePayuCallback(req: PayuCallbackRequest, res: Response) {
             raw: JSON.stringify({ error: error instanceof Error ? error.message : 'verify_failed' }),
             parsed: null as Record<string, unknown> | null,
         }));
+        const rawTransaction = findPayuVerifiedTransaction(verifyResult.parsed, txnid);
+        const verifiedStatus = getPayuVerifiedStatus(rawTransaction);
+        const verifiedAmount = getPayuVerifiedAmount(rawTransaction);
+        const verifiedAmountMatches = !verifiedAmount || verifiedAmount === formatPayuAmount(payment.amount);
+        const nextStatus =
+            verifiedStatus === 'success' && verifiedAmountMatches
+                ? 'COMPLETED'
+                : verifiedStatus === 'failure' || verifiedStatus === 'failed'
+                    ? 'FAILED'
+                    : hashMatches && txnMatches && amountMatches && statusLower === 'success'
+                        ? 'COMPLETED'
+                        : statusLower === 'failure' || statusLower === 'failed'
+                            ? 'FAILED'
+                            : 'PENDING';
+        const payuMihpayId = normalizeOptionalString(
+            payload.mihpayid ||
+            rawTransaction?.mihpayId ||
+            rawTransaction?.mihpayid,
+        );
+        const payuBankRefNum = normalizeOptionalString(
+            payload.bank_ref_num ||
+            rawTransaction?.bankReferenceNumber ||
+            rawTransaction?.bank_ref_num,
+        );
+        const payuPaymentMode = normalizeOptionalString(payload.mode || rawTransaction?.mode);
+        const payuStatus = normalizeOptionalString(status || rawTransaction?.status);
+        const payuUnmappedStatus = normalizeOptionalString(
+            payload.unmappedstatus ||
+            rawTransaction?.unmappedStatus ||
+            rawTransaction?.unmappedstatus,
+        );
 
         const updatedPayment = await prisma.payment.update({
             where: { id: payment.id },
             data: {
                 status: nextStatus,
                 gatewayOrderId: txnid,
-                gatewayPaymentId: normalizeOptionalString(payload.mihpayid),
+                gatewayPaymentId: payuMihpayId,
                 payuTxnId: txnid,
-                payuMihpayId: normalizeOptionalString(payload.mihpayid),
-                payuBankRefNum: normalizeOptionalString(payload.bank_ref_num),
-                payuPaymentMode: normalizeOptionalString(payload.mode),
-                payuStatus: status,
-                payuUnmappedStatus: normalizeOptionalString(payload.unmappedstatus),
-                payuHash: responseHash,
+                payuMihpayId,
+                payuBankRefNum,
+                payuPaymentMode,
+                payuStatus,
+                payuUnmappedStatus,
+                payuHash: responseHash || payment.payuHash,
                 payuResponse: JSON.stringify(payload),
                 payuVerifiedResponse: verifyResult.raw,
                 gatewayReceiptImageUrl: normalizeOptionalString(payload.receiptUrl || payload.receipt_url),
                 failureMessage: nextStatus === 'FAILED'
-                    ? normalizeOptionalString(payload.error_Message || payload.unmappedstatus || status)
-                    : (!hashMatches || !txnMatches || !amountMatches
-                        ? 'PayU callback validation failed'
+                    ? normalizeOptionalString(payload.error_Message || payload.unmappedstatus || rawTransaction?.unmappedStatus || status)
+                    : ((!hashMatches && status && responseHash) || !txnMatches || !amountMatches || !verifiedAmountMatches
+                        ? 'PayU callback/verification validation needs attention'
                         : null),
                 completedAt: nextStatus === 'COMPLETED'
                     ? (payment.completedAt || new Date())
@@ -582,7 +745,7 @@ async function handlePayuCallback(req: PayuCallbackRequest, res: Response) {
         return res.redirect(getServiceRedirectUrl(payment.id, result));
     } catch (error) {
         console.error('PayU callback failed:', error);
-        return res.status(500).send('PayU callback processing failed');
+        return res.redirect(getPayuCallbackFallbackUrl('error'));
     }
 }
 
@@ -841,6 +1004,7 @@ router.post('/services/submissions/:submissionId/checkout', authenticate, async 
         const amount = roundCurrency(submission.paymentAmount);
         const paymentSubtotal = amount;
         const paymentTax = 0;
+        const productName = getServiceSubmissionProductName(submission);
 
         let payment = submission.payment;
 
@@ -862,7 +1026,7 @@ router.post('/services/submissions/:submissionId/checkout', authenticate, async 
                     gateway: 'payu',
                     status: 'PENDING',
                     type: 'service',
-                    description: submission.service.name,
+                    description: productName,
                     billingName: user.name,
                     billingEmail: validated.normalizedEmail,
                     billingPhone: validated.normalizedPhone,
@@ -891,7 +1055,7 @@ router.post('/services/submissions/:submissionId/checkout', authenticate, async 
                     gateway: 'payu',
                     status: 'PENDING',
                     type: 'service',
-                    description: submission.service.name,
+                    description: productName,
                     billingName: user.name,
                     billingEmail: validated.normalizedEmail,
                     billingPhone: validated.normalizedPhone,
@@ -920,7 +1084,7 @@ router.post('/services/submissions/:submissionId/checkout', authenticate, async 
         const hostedRequest = buildHostedCheckoutRequest({
             payment,
             merchantKey: settings.merchantKey || '',
-            productName: submission.service.name,
+            productName,
             udf2: 'service',
             udf3: submission.id,
             cancelUrl: getServiceRedirectUrl(payment.id, 'cancelled'),

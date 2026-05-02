@@ -18,10 +18,13 @@ import serviceRoutes from './routes/services';
 import analyticsRoutes from './routes/analytics';
 import financeRoutes from './routes/finance';
 import adminRoutes from './routes/admin';
+import adminNotificationRoutes from './routes/adminNotifications';
+import adminSupportRoutes from './routes/adminSupport';
 import paymentRoutes from './routes/payments';
 import notificationRoutes from './routes/notifications';
 import postRoutes from './routes/posts';
 import messageRoutes from './routes/messages';
+import supportRoutes from './routes/support';
 import { getUploadRootDir } from './utils/media';
 
 const app = express();
@@ -35,10 +38,26 @@ function normalizeOrigin(origin: string) {
         .replace(/\/+$/, '');
 }
 
-const allowedOrigins = (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:3000,http://localhost:3001')
+const defaultAllowedOrigins = [
+    'https://bouutmusic.com',
+    'https://www.bouutmusic.com',
+    'http://localhost:3000',
+    'http://localhost:3001',
+];
+const configuredOrigins = `${process.env.FRONTEND_URLS || ''},${process.env.FRONTEND_URL || ''}`;
+const allowedOrigins = (configuredOrigins || defaultAllowedOrigins.join(','))
     .split(',')
     .map(origin => normalizeOrigin(origin))
-    .filter(Boolean);
+    .filter(Boolean)
+    .concat(defaultAllowedOrigins)
+    .map(origin => normalizeOrigin(origin));
+const backendOrigins = [
+    process.env.BACKEND_PUBLIC_URL,
+    `http://localhost:${PORT}`,
+    `http://127.0.0.1:${PORT}`,
+]
+    .filter(Boolean)
+    .map(origin => normalizeOrigin(origin as string));
 
 function isPayuOrigin(origin: string) {
     try {
@@ -58,7 +77,12 @@ const corsOptions: cors.CorsOptions = {
 
         const normalizedOrigin = normalizeOrigin(origin);
 
-        if (allowedOrigins.includes(normalizedOrigin) || isPayuOrigin(normalizedOrigin)) {
+        if (
+            origin === 'null' ||
+            allowedOrigins.includes(normalizedOrigin) ||
+            backendOrigins.includes(normalizedOrigin) ||
+            isPayuOrigin(normalizedOrigin)
+        ) {
             callback(null, true);
             return;
         }
@@ -101,10 +125,13 @@ app.use('/api/services', serviceRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/admin/notifications', adminNotificationRoutes);
+app.use('/api/admin/support', adminSupportRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/support', supportRoutes);
 
 // Error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

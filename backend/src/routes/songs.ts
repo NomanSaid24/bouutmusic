@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { NextFunction, Router, Response } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import multer from 'multer';
@@ -9,8 +9,10 @@ import {
     getUploadSubdir,
     normalizeSongMedia,
 } from '../utils/media';
+import { notifyAdmins } from '../utils/notifications';
 
 const router = Router();
+const RELEASE_MUSIC_SERVICE_ID = 'release-music-service';
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -24,6 +26,117 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB
+
+function parseJsonRecord(value: string | null) {
+    if (!value) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(value) as Record<string, unknown>;
+        return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+function getStringValue(value: unknown) {
+    return typeof value === 'string' ? value.trim() : '';
+}
+
+function getReleasePlanSummary(formData: Record<string, unknown> | null) {
+    const plan = formData?.plan;
+
+    if (plan && typeof plan === 'object') {
+        const planRecord = plan as Record<string, unknown>;
+        return {
+            id: getStringValue(planRecord.id) || getStringValue(formData?.planId),
+            title: getStringValue(planRecord.title) || 'Release Plan',
+            price: typeof planRecord.price === 'number' ? planRecord.price : null,
+            bestFor: getStringValue(planRecord.bestFor) || null,
+        };
+    }
+
+    return {
+        id: getStringValue(formData?.planId) || getStringValue(formData?.plan),
+        title: getStringValue(formData?.plan) || 'Release Plan',
+        price: null,
+        bestFor: null,
+    };
+}
+
+async function getPaidReleaseAccess(userId: string) {
+    const submission = await prisma.submission.findFirst({
+        where: {
+            userId,
+            type: 'service',
+            OR: [
+                { serviceId: RELEASE_MUSIC_SERVICE_ID },
+                { service: { is: { name: { contains: 'Release' } } } },
+            ],
+        },
+        orderBy: [
+            { paymentCompletedAt: 'desc' },
+            { createdAt: 'desc' },
+        ],
+        include: {
+            service: true,
+            payment: true,
+        },
+    });
+
+    if (!submission) {
+        return {
+            hasAccess: false,
+            state: 'NO_PLAN',
+            submissionId: null,
+            serviceName: null,
+            plan: null,
+            paymentCompletedAt: null,
+        };
+    }
+
+    const formData = parseJsonRecord(submission.formData);
+    const paymentCompleted = submission.paymentStatus === 'PAID' || submission.payment?.status === 'COMPLETED';
+    const refundInProgress =
+        ['REFUND_PENDING', 'REFUNDED'].includes(submission.paymentStatus) ||
+        ['INITIATED', 'REFUNDED'].includes(submission.payment?.refundStatus || '');
+    const hasAccess = paymentCompleted && submission.status !== 'REJECTED' && !refundInProgress;
+    const state = hasAccess
+        ? (submission.status === 'APPROVED' ? 'APPROVED' : 'PAID')
+        : submission.status === 'REJECTED'
+            ? 'REJECTED'
+            : paymentCompleted
+                ? 'PENDING_REVIEW'
+                : 'PAYMENT_REQUIRED';
+
+    return {
+        hasAccess,
+        state,
+        submissionId: submission.id,
+        serviceName: submission.service?.name || 'Release My Music',
+        plan: getReleasePlanSummary(formData),
+        paymentCompletedAt: submission.paymentCompletedAt || submission.payment?.completedAt || null,
+    };
+}
+
+async function requireReleasePlan(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+        const access = await getPaidReleaseAccess(req.user!.id);
+
+        if (!access.hasAccess) {
+            return res.status(403).json({
+                error: 'Please purchase a release plan before uploading music.',
+                code: 'RELEASE_PLAN_REQUIRED',
+            });
+        }
+
+        return next();
+    } catch (error) {
+        console.error('Release access check failed:', error);
+        return res.status(500).json({ error: 'Unable to verify release plan access' });
+    }
+}
 
 // GET /api/songs
 router.get('/', async (req, res: Response) => {
@@ -64,6 +177,30 @@ router.get('/', async (req, res: Response) => {
     }
 });
 
+// GET /api/songs/release-access
+router.get('/release-access', authenticate, async (req: AuthRequest, res: Response) => {
+    try {
+        const access = await getPaidReleaseAccess(req.user!.id);
+        return res.json(access);
+    } catch {
+        return res.status(500).json({ error: 'Unable to verify release plan access' });
+    }
+});
+
+// GET /api/songs/my/songs (my songs)
+router.get('/my/songs', authenticate, async (req: AuthRequest, res: Response) => {
+    try {
+        const songs = await prisma.song.findMany({
+            where: { artistId: req.user!.id },
+            orderBy: { createdAt: 'desc' },
+            include: { album: { select: { title: true } } },
+        });
+        return res.json(songs.map(normalizeSongMedia));
+    } catch {
+        return res.status(500).json({ error: 'Failed to fetch songs' });
+    }
+});
+
 // GET /api/songs/:id
 router.get('/:id', async (req, res: Response) => {
     try {
@@ -83,7 +220,7 @@ router.get('/:id', async (req, res: Response) => {
 });
 
 // POST /api/songs/upload (artist upload)
-router.post('/upload', authenticate, upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'artwork', maxCount: 1 }]), async (req: AuthRequest, res: Response) => {
+router.post('/upload', authenticate, requireReleasePlan, upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'artwork', maxCount: 1 }]), async (req: AuthRequest, res: Response) => {
     try {
         const { title, genre, language, year, description, privacy, featuredArtists } = req.body;
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
@@ -106,27 +243,20 @@ router.post('/upload', authenticate, upload.fields([{ name: 'audio', maxCount: 1
             data: {
                 userId: req.user!.id, type: 'upload_success',
                 title: 'Song uploaded!', message: `"${title}" has been uploaded successfully.`,
+                link: '/dashboard/release/my-releases',
             },
         });
+        await notifyAdmins({
+            type: 'admin_song_submitted',
+            title: 'Release song submitted',
+            message: `"${title}" was uploaded for release/distribution review.`,
+            link: '/admin/songs',
+        }).catch(error => console.error('Failed to create admin song upload notification:', error));
 
         return res.status(201).json(normalizeSongMedia(song));
     } catch (err) {
         console.error(err);
         return res.status(500).json({ error: 'Upload failed' });
-    }
-});
-
-// GET /api/songs/my/songs (my songs)
-router.get('/my/songs', authenticate, async (req: AuthRequest, res: Response) => {
-    try {
-        const songs = await prisma.song.findMany({
-            where: { artistId: req.user!.id },
-            orderBy: { createdAt: 'desc' },
-            include: { album: { select: { title: true } } },
-        });
-        return res.json(songs.map(normalizeSongMedia));
-    } catch {
-        return res.status(500).json({ error: 'Failed to fetch songs' });
     }
 });
 

@@ -64,6 +64,44 @@ function formatCurrency(value: number, currency: string) {
     }).format(value);
 }
 
+function getCheckoutContext(checkout: CheckoutDetails) {
+    const productName = checkout.summary.productName || checkout.submission.serviceName;
+    const normalizedProduct = `${productName} ${checkout.submission.serviceName}`.toLowerCase();
+    const isRelease = checkout.submission.serviceId === 'release-music-service' || normalizedProduct.includes('release');
+    const isGrowth = checkout.submission.serviceId === 'growth-engine-service' || normalizedProduct.includes('growth engine');
+
+    if (isRelease) {
+        return {
+            productName,
+            paymentMeta: 'Release plan payment',
+            completedMessage: 'Payment completed successfully. My Releases is unlocked for your music submission.',
+            confirmedCopy: 'Payment confirmed via PayU. Your release workspace is unlocked and ready for upload.',
+            successHref: '/dashboard/release/my-releases',
+            successCta: 'Open My Releases',
+        };
+    }
+
+    if (isGrowth) {
+        return {
+            productName,
+            paymentMeta: 'Growth Engine payment',
+            completedMessage: 'Payment completed successfully. Your Growth Engine request is now waiting for admin review.',
+            confirmedCopy: 'Payment confirmed via PayU. Your Growth Engine submission is queued for admin approval or rejection.',
+            successHref: '/dashboard/growth-engine',
+            successCta: 'Back to Growth Engine',
+        };
+    }
+
+    return {
+        productName,
+        paymentMeta: 'Promo submission payment',
+        completedMessage: 'Payment completed successfully. Your promo request is now waiting for admin review.',
+        confirmedCopy: 'Payment confirmed via PayU. Your submission is queued for admin approval or rejection.',
+        successHref: '/dashboard/promo-tools',
+        successCta: 'Back to Promo Tools',
+    };
+}
+
 export function PromoServicePaymentPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -160,8 +198,10 @@ export function PromoServicePaymentPage() {
 
                 setCheckout(payload);
 
+                const context = getCheckoutContext(payload);
+
                 if (payload.status === 'COMPLETED') {
-                    setStatusMessage('Payment completed successfully. Your promo request is now waiting for admin review.');
+                    setStatusMessage(context.completedMessage);
                 } else if (result === 'failed') {
                     setStatusError('PayU returned a failed payment status. You can try again below.');
                 } else {
@@ -242,13 +282,15 @@ export function PromoServicePaymentPage() {
         );
     }
 
+    const checkoutContext = getCheckoutContext(checkout);
+
     return (
         <div className={styles.page}>
             <div className={styles.shell}>
                 <div className={styles.headingBlock}>
                     <h1 className={styles.pageTitle}>Complete Payment</h1>
                     <p className={styles.pageSubtitle}>
-                        Securely finish your {checkout.submission.serviceName} payment using PayU hosted checkout.
+                        Securely finish your {checkoutContext.productName} payment using PayU hosted checkout.
                     </p>
                 </div>
 
@@ -288,10 +330,19 @@ export function PromoServicePaymentPage() {
                                 </p>
 
                                 {checkout.status === 'COMPLETED' ? (
-                                    <div className={styles.summaryMeta}>
-                                        Payment confirmed via PayU. Your submission is queued for admin approval or rejection.
-                                        {checkout.payu.mihpayid && <span> Reference: {checkout.payu.mihpayid}</span>}
-                                    </div>
+                                    <>
+                                        <div className={styles.summaryMeta}>
+                                            {checkoutContext.confirmedCopy}
+                                            {checkout.payu.mihpayid && <span> Reference: {checkout.payu.mihpayid}</span>}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className={styles.paymentButton}
+                                            onClick={() => router.push(checkoutContext.successHref)}
+                                        >
+                                            {checkoutContext.successCta}
+                                        </button>
+                                    </>
                                 ) : (
                                     <div className={styles.redirectCard}>
                                         <h3>Redirecting to PayU...</h3>
@@ -333,8 +384,8 @@ export function PromoServicePaymentPage() {
 
                             <div className={styles.summaryLine}>
                                 <div>
-                                    <p className={styles.productName}>{checkout.submission.serviceName}</p>
-                                    <p className={styles.productMeta}>Promo submission payment</p>
+                                    <p className={styles.productName}>{checkoutContext.productName}</p>
+                                    <p className={styles.productMeta}>{checkoutContext.paymentMeta}</p>
                                 </div>
                                 <span className={styles.summaryPrice}>
                                     {formatCurrency(checkout.summary.totalAmount, checkout.summary.currency)}

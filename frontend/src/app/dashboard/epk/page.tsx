@@ -51,7 +51,7 @@ function PlaceholderCard({
 
             <div className="epk-showcase-placeholder">
                 <div className="epk-showcase-plus">{icon || <CirclePlus size={16} />}</div>
-                <p>Add the {title.toLowerCase()} you would like on your e-Press Kit</p>
+                <p>Add the {title.toLowerCase()} you would like on your E-Profile</p>
                 <button className="epk-showcase-add-btn" type="button">{buttonLabel}</button>
             </div>
         </section>
@@ -173,7 +173,7 @@ export default function EPKEditorShowcasePage() {
 
                     <div className="epk-showcase-placeholder">
                         <div className="epk-showcase-plus"><Trophy size={15} /></div>
-                        <p>Add the achievements you would like on your e-Press Kit</p>
+                        <p>Add the achievements you would like on your E-Profile</p>
                         <button className="epk-showcase-add-btn" type="button">Add Achievements</button>
                     </div>
                 </section>

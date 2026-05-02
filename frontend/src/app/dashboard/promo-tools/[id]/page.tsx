@@ -1,44 +1,19 @@
 'use client';
-import { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { use, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CollaborateWithUsForm } from '@/components/Promo/CollaborateWithUsForm';
 import { DemoSubmissionForm } from '@/components/Promo/DemoSubmissionForm';
 import { PlaylistSubmissionForm } from '@/components/Promo/PlaylistSubmissionForm';
 import { PromoteMusicForm } from '@/components/Promo/PromoteMusicForm';
 import { ReleaseMusicForm } from '@/components/Promo/ReleaseMusicForm';
-
-interface Service {
-    id: string;
-    name: string;
-    description: string;
-    price: number;
-}
+import { getStaticPromoService } from '@/lib/staticPromoServices';
 
 export default function ServiceFormPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const router = useRouter();
-    const [service, setService] = useState<Service | null>(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchService = async () => {
-            try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-                const res = await fetch(`${apiUrl}/api/services`);
-                if (res.ok) {
-                    const services = await res.json();
-                    const found = services.find((s: Service) => s.id === id);
-                    setService(found);
-                }
-            } catch (error) {
-                console.error('Failed to fetch service:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchService();
-    }, [id]);
+    const searchParams = useSearchParams();
+    const [service] = useState(() => getStaticPromoService(id));
 
     const handleSubmit = async (formData: any) => {
         try {
@@ -77,20 +52,6 @@ export default function ServiceFormPage({ params }: { params: Promise<{ id: stri
         }
     };
 
-    if (loading) {
-        return (
-            <div className="bouut-form-loader-screen" role="status" aria-live="polite">
-                <div className="bouut-form-loader-card">
-                    <div className="bouut-form-loader-spinner" />
-                    <div className="bouut-form-loader-title">Preparing your form</div>
-                    <div className="bouut-form-loader-text">
-                        We&apos;re loading the promo request details and setting things up for you.
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
     if (!service) {
         return (
             <div className="bouut-form-loader-screen">
@@ -115,8 +76,14 @@ export default function ServiceFormPage({ params }: { params: Promise<{ id: stri
         if (lowerName.includes('playlist')) {
             return <PlaylistSubmissionForm onSubmit={handleSubmit} onCancel={() => router.back()} />;
         }
-        if (lowerName.includes('promote my music')) {
-            return <PromoteMusicForm onSubmit={handleSubmit} onCancel={() => router.back()} />;
+        if (lowerName.includes('promote my music') || lowerName.includes('promote your music')) {
+            return (
+                <PromoteMusicForm
+                    initialPlan={searchParams.get('plan')}
+                    onSubmit={handleSubmit}
+                    onCancel={() => router.back()}
+                />
+            );
         }
         if (lowerName.includes('collaborate')) {
             return <CollaborateWithUsForm onSubmit={handleSubmit} onCancel={() => router.back()} />;
